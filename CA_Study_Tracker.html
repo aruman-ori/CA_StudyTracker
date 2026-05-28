@@ -1,0 +1,2524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CA Study Tracker</title>
+    
+    <!-- Firebase Realtime & Firestore CDNs -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    
+    <!-- CryptoJS for Client-Side Encryption -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-main: #111111;
+            --bg-panel: #1a1a1a;
+            --lime: #d4ff2a;
+            --pink: #ff4d6d;
+            --cream: #f4f0e6;
+            --light-blue: #dcecf5;
+            --text-main: #ffffff;
+            --text-muted: #888888;
+            --border-color: #2a2a2a;
+            --font-sans: 'Inter', sans-serif;
+            --font-serif: 'Playfair Display', serif;
+            
+            --c-lec: #0984e3;
+            --c-fr: var(--lime);
+            --c-q: #a29bfe;
+            --c-w: #e84393;
+            --c-rev: #fdcb6e;
+            --c-mt: var(--pink);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            font-family: var(--font-sans);
+            padding: 20px;
+            padding-bottom: 350px; 
+        }
+
+        .navbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding: 0 10px; }
+        .brand { font-size: 18px; font-weight: 600; letter-spacing: 0.5px; }
+        .brand span { color: var(--text-muted); font-weight: 400; font-size: 14px; margin-left: 8px; }
+        .nav-links { display: flex; gap: 12px; }
+        .nav-links div { padding: 6px 16px; border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; transition: all 0.2s ease; }
+        .nav-links div:hover { border-color: var(--text-muted); }
+        .nav-links .active { background-color: white; color: black; font-weight: 600; }
+        .status { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); font-family: monospace; transition: color 0.3s ease; }
+        .live-dot { width: 8px; height: 8px; background-color: #444; border-radius: 50%; transition: background-color 0.3s ease; }
+
+        .tab-section { display: none; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        #dashboard.active-tab { display: grid; }
+        .simple-tab.active-tab { display: block; background-color: var(--bg-panel); border-radius: 8px; padding: 40px; border: 1px solid var(--border-color); min-height: 60vh; }
+        .simple-tab h2 { font-family: var(--font-serif); font-size: 32px; margin-bottom: 16px; color: var(--lime); }
+        .simple-tab p { color: var(--text-muted); line-height: 1.6; margin-bottom: 24px; }
+
+        .dashboard { grid-template-columns: 1.2fr 1fr 1fr 1.3fr; grid-template-rows: auto auto auto auto auto auto; gap: 16px; }
+        .panel { background-color: var(--bg-panel); border-radius: 8px; padding: 24px; display: flex; flex-direction: column; border: 1px solid var(--border-color); transition: transform 0.2s ease, border-color 0.2s ease; }
+        .panel:hover { border-color: #444; }
+        .panel-title { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-muted); margin-bottom: auto; }
+        .number-serif { font-family: var(--font-serif); font-size: 56px; line-height: 1.1; margin: 16px 0 8px 0; }
+
+        .days-studied { grid-column: 1 / 2; grid-row: 1 / 3; background-color: var(--lime); color: #000; border: none; justify-content: space-between; }
+        .days-studied .panel-title, .days-studied .text-sub { color: #000; opacity: 0.7; font-weight: 600; }
+        .total-hours { grid-column: 2 / 3; grid-row: 1 / 2; }
+        .consistency { grid-column: 3 / 4; grid-row: 1 / 2; background-color: var(--pink); color: #fff; border: none; }
+        .consistency .panel-title, .consistency .text-sub { color: #fff; opacity: 0.8; }
+        .exam-countdown { grid-column: 4 / 5; grid-row: 1 / 2; background-color: var(--light-blue); color: #000; border: none; padding: 16px; }
+        .exam-countdown .panel-title { color: #000; opacity: 0.6; padding: 8px; margin-bottom: 0;}
+        .exam-split { display: flex; gap: 8px; height: 100%; }
+        .exam-group { flex: 1; background: rgba(0,0,0,0.05); padding: 16px; border-radius: 4px; display: flex; flex-direction: column; justify-content: flex-end; }
+        .exam-group .group-title { font-size: 10px; font-weight: 700; letter-spacing: 1px; margin-bottom: 8px; }
+        .exam-group .group-desc { font-size: 11px; opacity: 0.7; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 4px; }
+        .overall-progress { grid-column: 2 / 4; grid-row: 2 / 3; display: flex; flex-direction: row; align-items: center; }
+        .progress-text-area { flex: 1; }
+        .progress-bar-area { flex: 2; margin-left: 24px; margin-top: 16px;}
+        .progress-track { width: 100%; height: 30px; background-color: #2a2a2a; border-radius: 4px; overflow: hidden; }
+        .progress-fill { height: 100%; background-color: var(--lime); width: 0%; transition: width 0.5s ease; }
+        .today-glance { grid-column: 1 / 4; grid-row: 3 / 4; background-color: var(--cream); color: #000; border: none; display: flex; flex-direction: row; align-items: flex-end; padding: 32px 24px; position: relative; }
+        .today-glance .panel-title { position: absolute; top: 24px; color: #000; opacity: 0.5; }
+        .today-left { width: 150px; }
+        .today-right { flex: 1; margin-left: 40px; margin-bottom: 8px; display: flex; flex-direction: column; justify-content: flex-end;}
+        .subject-row { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 13px; font-weight: 600; }
+        .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 8px; }
+        
+        .revisions { grid-column: 4 / 5; grid-row: 2 / 4; overflow-y: auto; max-height: 400px; }
+        .revisions::-webkit-scrollbar { width: 4px; }
+        .revisions::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+        .rev-list { margin-top: 16px; display: flex; flex-direction: column; gap: 12px; }
+        .rev-item { display: flex; flex-direction: column; font-size: 13px; font-weight: 500; padding: 8px 12px; background: rgba(255,255,255,0.03); border-left: 3px solid #444; border-radius: 4px; cursor: pointer; transition: background 0.2s;}
+        .rev-item:hover { background: rgba(255,255,255,0.08); }
+        .rev-header { display: flex; justify-content: space-between; margin-bottom: 4px; }
+        .rev-sub { font-size: 10px; color: var(--text-muted); }
+        .tag-red { color: var(--pink); font-size: 10px; font-weight: 700; text-transform: uppercase;}
+        .tag-orange { color: #ffb703; font-size: 10px; font-weight: 700; text-transform: uppercase;}
+        .tag-lime { color: var(--lime); font-size: 10px; font-weight: 700; text-transform: uppercase;}
+        .section-divider { border-top: 1px dashed var(--border-color); margin: 16px 0 8px 0; padding-top: 16px; }
+
+        .heatmap { grid-column: 1 / 4; grid-row: 4 / 5; position: relative; }
+        .heatmap-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .streak-badge { color: var(--lime); font-size: 13px; font-weight: 700; background: rgba(212, 255, 42, 0.1); padding: 4px 10px; border-radius: 12px; border: 1px solid rgba(212, 255, 42, 0.3); font-family: monospace; }
+        .heatmap-container-wrapper { overflow-x: auto; padding-bottom: 10px; scrollbar-width: thin; scrollbar-color: #444 #111; cursor: grab; }
+        .heatmap-container-wrapper:active { cursor: grabbing; }
+        .heatmap-container-wrapper::-webkit-scrollbar { height: 6px; }
+        .heatmap-container-wrapper::-webkit-scrollbar-track { background: #111; border-radius: 4px; }
+        .heatmap-container-wrapper::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+        .heatmap-container { display: flex; gap: 8px; min-width: max-content; }
+        .heatmap-labels-y { display: flex; flex-direction: column; justify-content: space-between; font-size: 10px; color: var(--text-muted); padding-top: 2px; padding-bottom: 2px; }
+        .heatmap-cells { display: grid; grid-template-rows: repeat(7, 1fr); grid-auto-flow: column; gap: 3px; }
+        .cell { width: 14px; height: 14px; background-color: #2a2a2a; border-radius: 3px; transition: transform 0.2s, box-shadow 0.2s; position: relative; cursor: pointer; }
+        .cell:hover { transform: scale(1.4); border: 1px solid #fff; z-index: 10; }
+        .cell[data-intensity="0"] { background-color: #2a2a2a; }
+        .cell[data-intensity="1"] { background-color: #4a5c17; }
+        .cell[data-intensity="2"] { background-color: #7a9c22; }
+        .cell[data-intensity="3"] { background-color: #a9de2d; }
+        .cell[data-intensity="4"] { background-color: var(--lime); box-shadow: 0 0 8px rgba(212, 255, 42, 0.6); }
+        .cell.goal-achieved { border: 1px solid #fff; }
+        .cell.goal-achieved::after { content: '★'; position: absolute; font-size: 8px; color: #fff; top: -2px; left: 2px; pointer-events: none; }
+        .heatmap-tooltip { position: fixed; background: #111; color: #fff; padding: 10px; border-radius: 6px; font-size: 12px; pointer-events: none; border: 1px solid var(--lime); display: none; z-index: 1000; box-shadow: 0 8px 16px rgba(0,0,0,0.8); line-height: 1.4; white-space: nowrap; }
+        .heatmap-tooltip strong { color: var(--lime); font-size: 13px; display: block; margin-bottom: 4px; }
+        .heatmap-tooltip span { color: var(--text-muted); font-size: 11px; }
+
+        .bottom-row { grid-column: 1 / -1; grid-row: 5 / 6; display: grid; grid-template-columns: 1.2fr 2fr; gap: 16px; }
+        .subject-completion { grid-column: 1 / -1; grid-row: 6 / 7; background: var(--bg-panel); border: 1px solid var(--border-color); padding: 24px; border-radius: 8px; }
+
+        .activity-breakdown { height: 100%; }
+        .recent-sessions { height: 100%; overflow-y: auto; max-height: 350px; }
+        .recent-sessions::-webkit-scrollbar { width: 4px; }
+        .recent-sessions::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+        .activity-row { display: flex; align-items: center; margin-top: 16px; font-size: 12px; font-weight: 500; cursor: pointer; opacity: 0.8; transition: opacity 0.2s;}
+        .activity-row:hover { opacity: 1; }
+        .activity-name { width: 100px; }
+        .activity-bar-track { flex: 1; height: 4px; background: #2a2a2a; border-radius: 2px; margin: 0 16px; }
+        .activity-bar-fill { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
+        .activity-pct { width: 30px; text-align: right; color: var(--lime); }
+        .session-item { display: flex; margin-top: 12px; align-items: flex-start; padding: 8px; border-radius: 4px; transition: background 0.2s; cursor: pointer; background: rgba(255,255,255,0.02);}
+        .session-item:hover { background: rgba(255,255,255,0.05); }
+        .session-time { width: 80px; color: var(--text-muted); font-size: 11px; line-height: 1.4; }
+        .session-details { flex: 1; overflow: hidden;}
+        .session-title { font-weight: 600; font-size: 13px; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
+        .session-sub { font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px;}
+        .session-dot { width: 6px; height: 6px; border-radius: 50%; margin-left: 8px; margin-top: 4px;}
+        
+        .completion-group { margin-top: 20px; }
+        .completion-group-title { font-size: 9px; text-transform: uppercase; letter-spacing: 2px; color: var(--text-muted); margin-bottom: 12px;}
+        .comp-row { display: flex; align-items: center; margin-bottom: 12px; font-size: 12px; cursor: pointer; opacity: 0.8; transition: opacity 0.2s; }
+        .comp-row:hover { opacity: 1; }
+        .comp-name { flex: 1; display: flex; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 10px;}
+        .comp-bar { flex: 1; height: 2px; background: #2a2a2a; margin: 0 16px; min-width: 40px;}
+        .comp-fill { height: 100%; transition: width 0.5s ease; }
+        .comp-pct { width: 30px; text-align: right; font-family: monospace;}
+
+        .input-group { margin-top: 20px; display: flex; flex-direction: column; max-width: 500px;}
+        .input-group label { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; margin-top: 16px;}
+        .input-group label:first-child { margin-top: 0; }
+        .input-group input, .input-group select { background: #111; border: 1px solid var(--border-color); color: white; padding: 12px; border-radius: 4px; font-family: inherit; width: 100%; box-sizing: border-box; }
+        .checkbox-container { display: flex; align-items: center; gap: 10px; margin-top: 16px; cursor: pointer; background: rgba(255,255,255,0.02); padding: 12px; border-radius: 4px; border: 1px solid var(--border-color);}
+        .checkbox-container input { width: 16px; height: 16px; accent-color: var(--pink); cursor: pointer;}
+        .checkbox-container span { font-size: 13px; color: #ddd;}
+        
+        .btn-primary { background: var(--lime); color: black; border: none; padding: 12px 24px; border-radius: 4px; font-weight: 600; cursor: pointer; transition: opacity 0.2s; margin-top: 24px; display: inline-block;}
+        .btn-primary:hover { opacity: 0.8; }
+        .btn-secondary { background: #2a2a2a; color: white; border: 1px solid #444; padding: 8px 16px; border-radius: 4px; font-weight: 500; cursor: pointer; font-size: 12px; transition: background 0.2s; }
+        .btn-secondary:hover { background: #333; }
+        .btn-danger { background: rgba(255, 77, 109, 0.1); color: var(--pink); border: 1px solid var(--pink); padding: 6px 12px; border-radius: 4px; font-size: 11px; cursor: pointer; transition: 0.2s; }
+        .btn-danger:hover { background: var(--pink); color: white; }
+
+        .empty-state { color: var(--text-muted); font-size: 13px; font-style: italic; margin-top: 16px; line-height: 1.5; }
+        
+        .syllabus-module { margin-top: 24px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; }
+        .syllabus-header { background: #222; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); }
+        .syllabus-header-title { font-weight: 600; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+        .syllabus-header-pct { font-size: 12px; color: var(--text-muted); }
+        
+        .syllabus-part-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; border-bottom: 1px solid #222; transition: background 0.2s; position: relative; }
+        .syllabus-part-row:hover { background: rgba(255, 255, 255, 0.04); }
+        .syllabus-part-row:last-child { border-bottom: none; }
+        .syllabus-part-title { flex: 1; font-size: 13px; color: #ddd; padding-right: 16px; transition: color 0.2s; }
+        .syllabus-part-row.completed .syllabus-part-title { color: #555; text-decoration: line-through; }
+        
+        .syllabus-activities { display: flex; gap: 8px; flex-shrink: 0; align-items: center; }
+        
+        .act-btn { display: flex; align-items: center; gap: 6px; background: #111; border: 1px solid #333; color: var(--text-muted); padding: 6px 10px; border-radius: 6px; font-size: 11px; font-weight: 500; cursor: pointer; transition: all 0.2s ease; user-select: none; }
+        .act-btn:hover { border-color: #666; color: #fff; }
+        .act-btn.active-Lec { background: rgba(9, 132, 227, 0.15); border-color: var(--c-lec); color: #fff; }
+        .act-btn.active-FR  { background: rgba(212, 255, 42, 0.15); border-color: var(--c-fr); color: #fff; }
+        .act-btn.active-Q   { background: rgba(162, 155, 254, 0.15); border-color: var(--c-q); color: #fff; }
+        .act-btn.active-W   { background: rgba(232, 67, 147, 0.15); border-color: var(--c-w); color: #fff; }
+        .act-btn.active-Rev { background: rgba(253, 203, 110, 0.15); border-color: var(--c-rev); color: #fff; }
+        .act-btn.active-MT  { background: rgba(255, 77, 109, 0.15); border-color: var(--c-mt); color: #fff; }
+
+        .row-controls { display: flex; align-items: center; gap: 12px; margin-left: 16px; border-left: 1px solid #333; padding-left: 16px; opacity: 0.3; transition: opacity 0.2s; }
+        .syllabus-part-row:hover .row-controls { opacity: 1; }
+        
+        .ldr-flag-btn { background: none; border: none; font-size: 14px; cursor: pointer; color: #555; transition: color 0.2s; }
+        .ldr-flag-btn:hover { transform: scale(1.1); }
+        .ldr-flag-btn.active { color: var(--pink); opacity: 1; }
+        
+        .diff-stars { display: flex; gap: 2px; }
+        .star-btn { background: none; border: none; font-size: 12px; color: #444; cursor: pointer; }
+        .star-btn.active { color: #ffb703; }
+
+        .planner-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin-top: 24px; }
+        .planner-day-col { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; min-height: 300px; display: flex; flex-direction: column;}
+        .planner-day-header { font-weight: 600; font-size: 14px; color: var(--lime); border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px;}
+        .planner-task { background: rgba(255,255,255,0.03); border-left: 3px solid var(--lime); padding: 12px; border-radius: 4px; margin-bottom: 8px; font-size: 12px; position: relative; transition: background 0.2s; }
+        .planner-task.past-due { background: rgba(255, 77, 109, 0.05); }
+        .planner-task-title { font-weight: 600; color: #fff; margin-bottom: 4px; padding-right: 20px;}
+        .planner-task-sub { color: var(--text-muted); font-size: 11px; }
+        .planner-task-del { position: absolute; top: 10px; right: 10px; background: none; border: none; color: #666; cursor: pointer; font-size: 14px;}
+        .planner-task-del:hover { color: var(--pink); }
+
+        .ldr-item { display: flex; justify-content: space-between; align-items: center; background: rgba(255, 77, 109, 0.05); border-left: 3px solid var(--pink); padding: 16px; border-radius: 4px; margin-bottom: 12px; }
+        .ldr-title { font-size: 14px; font-weight: 600; color: white; margin-bottom: 4px;}
+        .ldr-sub { font-size: 12px; color: var(--text-muted); }
+        .ldr-btn { background: none; border: 1px solid var(--border-color); color: var(--text-muted); padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; text-transform: uppercase;}
+        .ldr-btn:hover { background: rgba(255,255,255,0.1); color: white;}
+
+        .mt-table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13px; }
+        .mt-table th { padding: 12px 8px; color: var(--text-muted); text-transform: uppercase; font-size: 10px; letter-spacing: 1px; border-bottom: 1px solid #333; text-align: left;}
+        .mt-table td { padding: 12px 8px; border-bottom: 1px solid #222; }
+
+        .floating-timer { position: fixed; bottom: 24px; right: 24px; background: #151515; border: 1px solid #333; border-radius: 12px; padding: 20px; box-shadow: 0 20px 40px rgba(0,0,0,0.8); z-index: 1000; width: 280px; display: flex; flex-direction: column; gap: 16px; cursor: grab; user-select: none; }
+        .floating-timer:active { cursor: grabbing; }
+        .timer-tabs { display: flex; background: #0a0a0a; border-radius: 6px; padding: 4px; }
+        .timer-tab { flex: 1; text-align: center; font-size: 11px; font-weight: 600; padding: 8px; cursor: pointer; color: var(--text-muted); border-radius: 4px; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }
+        .timer-tab.active { background: #333; color: white; }
+        .timer-display-area { text-align: center; position: relative;}
+        .timer-display { font-family: var(--font-serif); font-size: 56px; color: var(--lime); font-variant-numeric: tabular-nums; line-height: 1; margin-bottom: 8px; }
+        .pomo-durations { display: none; justify-content: center; gap: 12px; }
+        .pomo-durations span { font-size: 11px; color: var(--text-muted); cursor: pointer; transition: 0.2s;}
+        .pomo-durations span:hover { color: white; }
+        .pomo-durations span.selected { color: white; font-weight: bold; border-bottom: 1px solid var(--lime); }
+        .timer-controls { display: flex; justify-content: center; gap: 12px; }
+        .timer-btn { background: #222; border: 1px solid #444; color: white; width: 44px; height: 44px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; font-size: 16px; }
+        .timer-btn:hover { background: #333; transform: scale(1.05); }
+        .timer-btn.play { background: rgba(212, 255, 42, 0.1); color: var(--lime); border-color: rgba(212, 255, 42, 0.3);}
+        .timer-btn.play:hover { background: var(--lime); color: black; }
+        .log-time-btn { background: var(--lime); color: black; border: none; padding: 10px; border-radius: 4px; font-weight: 600; cursor: pointer; text-align: center; font-size: 13px; transition: opacity 0.2s; display: none; animation: fadeIn 0.3s ease; }
+        .log-time-btn:hover { opacity: 0.8; }
+
+        /* Compare Tab Styles */
+        .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 24px; }
+        .compare-card { background: var(--bg-panel); padding: 32px; border-radius: 8px; border: 1px solid var(--border-color); position: relative; }
+        .compare-card.me { border-top: 4px solid var(--lime); }
+        .compare-card.friend { border-top: 4px solid #a29bfe; }
+        .compare-title { font-family: var(--font-serif); font-size: 28px; margin-bottom: 24px; display: flex; align-items: center; gap: 12px;}
+        .compare-stat { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2a2a2a; padding: 16px 0; }
+        .compare-stat:last-child { border-bottom: none; }
+        .stat-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+        .stat-val { font-family: var(--font-serif); font-size: 32px; }
+    </style>
+</head>
+<body>
+
+    <!-- Predictive Quota & Error Warning Overlay -->
+    <div id="quota-warning" style="display:none; position:fixed; top:20px; left:50%; transform:translateX(-50%); background:#ffb703; color:#000; padding:12px 24px; border-radius:8px; z-index:9999; font-size:13px; box-shadow:0 10px 30px rgba(0,0,0,0.5); font-weight:500; align-items:center;">
+        <span id="quota-text">Warning Text</span>
+        <button onclick="document.getElementById('quota-warning').style.display='none'" style="background:none;border:none;margin-left:16px;cursor:pointer;font-weight:bold;color:inherit;font-size:16px;">✕</button>
+    </div>
+
+    <div class="navbar">
+        <div class="brand">CA Study Tracker <span id="navbar-subtitle"></span></div>
+        <div class="nav-links">
+            <div data-target="log">Log</div>
+            <div data-target="planner" style="color: #00cec9;">Planner</div>
+            <div data-target="syllabus">Syllabus</div>
+            <div data-target="timeline">Timeline</div>
+            <div data-target="ldr" style="color: var(--pink);">LDR</div>
+            <div data-target="compare" style="color: #a29bfe;">Compare</div>
+            <div data-target="dashboard" class="active">Dashboard</div>
+            <div data-target="settings">Settings</div>
+        </div>
+        <div class="status" id="header-status"></div>
+    </div>
+
+    <div id="dashboard" class="dashboard tab-section active-tab">
+        <div class="panel days-studied">
+            <div class="panel-title">Days Studied</div>
+            <div>
+                <div class="number-serif" id="days-studied-number" style="font-size: 72px;">0</div>
+                <div class="text-sub" id="days-studied-sub">of 0 since start</div>
+            </div>
+        </div>
+        <div class="panel total-hours">
+            <div class="panel-title">Total Hours</div>
+            <div class="number-serif" id="total-hours-main" style="font-size: 48px;">0</div>
+            <div class="text-sub text-muted" id="total-hours-avg" style="font-size: 12px;">avg 0h 0m / day</div>
+        </div>
+        <div class="panel consistency">
+            <div class="panel-title">Consistency</div>
+            <div class="number-serif" id="consistency-main" style="font-size: 48px;">0%</div>
+            <div class="text-sub" id="consistency-sub" style="font-size: 12px;">0 missed</div>
+        </div>
+        <div class="panel exam-countdown">
+            <div class="panel-title">Exam Countdown</div>
+            <div class="exam-split">
+                <div class="exam-group" id="dashboard-exam-group1">
+                    <div class="number-serif" id="countdown-g1-number" style="font-size: 42px; margin: 0;">0</div>
+                    <div class="group-title" id="dashboard-g1-title">EXAM</div>
+                    <div class="group-desc" id="dashboard-g1-desc"></div>
+                </div>
+                <div class="exam-group" id="dashboard-exam-group2" style="display: none;">
+                    <div class="number-serif" id="countdown-g2-number" style="font-size: 42px; margin: 0;">0</div>
+                    <div class="group-title">GROUP 2</div>
+                    <div class="group-desc" id="dashboard-g2-desc"></div>
+                </div>
+            </div>
+        </div>
+        <div class="panel overall-progress">
+            <div class="progress-text-area">
+                <div class="panel-title">Overall Progress (Exam-Ready)</div>
+                <div class="number-serif" id="overall-progress-pct" style="color: var(--lime); font-size: 42px;">0%</div>
+                <div class="text-sub text-muted" id="overall-progress-modules" style="font-size: 12px;">0 units</div>
+            </div>
+            <div class="progress-bar-area">
+                <div class="progress-track">
+                    <div class="progress-fill" id="overall-progress-bar" style="width: 0%;"></div>
+                </div>
+            </div>
+        </div>
+        <div class="panel today-glance">
+            <div class="panel-title">Today at a glance</div>
+            <div class="today-left">
+                <div class="number-serif" id="today-glance-time" style="font-size: 56px; margin: 0; line-height: 1;">0h<br>0m</div>
+                <div class="text-muted" id="today-glance-subject-count" style="font-size: 12px; margin-top: 12px;">0 subjects</div>
+            </div>
+            <div class="today-right" id="today-glance-right">
+                <div class="empty-state">No study sessions logged for today yet.</div>
+            </div>
+        </div>
+        <div class="panel revisions">
+            <div class="panel-title">Spaced Repetition (Ebbinghaus)</div>
+            <div class="rev-list" id="ebbinghaus-list">
+                <div class="empty-state">Complete a "First Reading" to trigger the 1d/3d/7d/30d cycle.</div>
+            </div>
+            <div class="panel-title section-divider">Final Exam Cycles (7d / 3d / 1d)</div>
+            <div class="rev-list" id="final-cycle-list">
+                <div class="empty-state">Log a "Mock Test" to trigger final sweep cycles.</div>
+            </div>
+        </div>
+        <div class="panel heatmap">
+            <div class="heatmap-header">
+                <div class="panel-title" style="margin-bottom: 0;">Study Heatmap · Hours per day</div>
+                <div class="streak-badge" id="streak-badge">🔥 0 Day Streak</div>
+            </div>
+            <div class="heatmap-container-wrapper">
+                <div class="heatmap-container">
+                    <div class="heatmap-labels-y">
+                        <span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span>
+                    </div>
+                    <div class="heatmap-cells" id="heatmap-cells"></div>
+                </div>
+            </div>
+            <div style="display: flex; justify-content: flex-end; align-items: center; gap: 6px; margin-top: 12px; font-size: 10px; color: var(--text-muted);">
+                <span>Less</span>
+                <div class="cell" style="width:10px;height:10px;background:#2a2a2a;pointer-events:none;"></div>
+                <div class="cell" style="width:10px;height:10px;background:#4a5c17;pointer-events:none;"></div>
+                <div class="cell" style="width:10px;height:10px;background:#7a9c22;pointer-events:none;"></div>
+                <div class="cell" style="width:10px;height:10px;background:#a9de2d;pointer-events:none;"></div>
+                <div class="cell" style="width:10px;height:10px;background:var(--lime);pointer-events:none;"></div>
+                <span>More</span>
+                <span style="margin-left: 8px;">★ 12h Goal</span>
+            </div>
+            <div id="heatmap-tooltip" class="heatmap-tooltip"></div>
+        </div>
+        <div class="bottom-row">
+            <div class="panel activity-breakdown">
+                <div class="panel-title">Activity Breakdown</div>
+                <div id="activity-breakdown-container">
+                    <div class="empty-state">No data yet.</div>
+                </div>
+            </div>
+            <div class="panel recent-sessions">
+                <div class="panel-title">Recent Sessions</div>
+                <div id="recent-sessions-list" style="margin-top: 8px;">
+                    <div class="empty-state">No sessions logged yet. Head to the Log tab to record your first session!</div>
+                </div>
+            </div>
+        </div>
+        <div class="panel subject-completion" id="subject-completion-container"></div>
+    </div>
+
+    <div id="compare" class="tab-section simple-tab">
+        <h2>Peer Comparison</h2>
+        <p>Compare your progress against your friend's public summary. Their detailed tasks and syllabus remain safely encrypted in their private vault.</p>
+        
+        <div class="compare-grid" id="compare-container">
+            <!-- Rendered via JS -->
+        </div>
+    </div>
+
+    <div id="planner" class="tab-section simple-tab">
+        <h2>Date-Aware Study Planner</h2>
+        <p>Assign specific units and chapters to upcoming days. The schedule dynamically adjusts as time passes, and past due tasks will carry over to today automatically.</p>
+        
+        <div class="input-group" style="flex-direction: row; gap: 12px; align-items: flex-end; max-width: 100%; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 150px;">
+                <label>Day</label>
+                <select id="planner-day"></select>
+            </div>
+            <div style="flex: 2; min-width: 200px;">
+                <label>Subject</label>
+                <select id="planner-subject"></select>
+            </div>
+            <div style="flex: 3; min-width: 250px;">
+                <label>Unit / Chapter</label>
+                <select id="planner-topic"></select>
+            </div>
+            <button class="btn-primary" style="margin: 0; padding: 12px 24px; height: 42px;" onclick="addPlannerTask()">+ Add to Plan</button>
+        </div>
+
+        <div class="planner-grid" id="planner-grid-container"></div>
+    </div>
+
+    <div id="log" class="tab-section simple-tab">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+                <h2>Log a Study Session</h2>
+                <p>Record your daily study efforts. Duration is required for logging time.</p>
+            </div>
+            <button class="btn-secondary" onclick="resumeLastSessionDefaults()" style="margin-top: 10px;">Resume Last Topic</button>
+        </div>
+        
+        <div class="input-group">
+            <label>Subject</label>
+            <select id="log-subject-select"></select>
+            <label>Unit / Chapter</label>
+            <select id="log-topic-select"></select>
+            <label>Activity Type</label>
+            <select id="log-activity-select">
+                <option value="Lecture">Lecture</option>
+                <option value="First Reading">First Reading (Triggers Spaced Repetition)</option>
+                <option value="Questions">Questions</option>
+                <option value="Writing Practice">Writing Practice</option>
+                <option value="Revision">Revision</option>
+                <option value="Mock Test">Mock Test (Triggers 7/3/1 Final Cycle)</option>
+            </select>
+            <label>Duration (Minutes) - <span style="text-transform:none;opacity:0.7">Optional if only checking LDR box</span></label>
+            <input type="number" id="log-duration-input" placeholder="e.g. 120">
+            <label class="checkbox-container">
+                <input type="checkbox" id="log-ldr-checkbox" onchange="document.getElementById('ldr-difficulty-wrapper').style.display = this.checked ? 'block' : 'none'">
+                <span>Add to Last Day Must-Revise (LDR) List</span>
+            </label>
+            <div id="ldr-difficulty-wrapper" style="display: none; margin-top: 16px;">
+                <label>Difficulty Rank (1 = Easy, 5 = Hard)</label>
+                <select id="log-ldr-difficulty" style="width: 100%;">
+                    <option value="5">5 - Very Hard (Prioritize)</option>
+                    <option value="4">4 - Hard</option>
+                    <option value="3" selected>3 - Medium</option>
+                    <option value="2">2 - Easy</option>
+                    <option value="1">1 - Very Easy</option>
+                </select>
+            </div>
+            <button class="btn-primary" onclick="logSession()">Save Session</button>
+        </div>
+    </div>
+
+    <div id="ldr" class="tab-section simple-tab">
+        <h2>Last Day Must-Revise List</h2>
+        <p>Topics you flagged as critical to review 24 hours before the exam. Sorted by difficulty rank (Hardest to Easiest).</p>
+        <div id="ldr-list-container" style="margin-top: 24px;">
+            <div class="empty-state">Your LDR list is currently empty.</div>
+        </div>
+    </div>
+
+    <div id="syllabus" class="tab-section simple-tab" style="background: var(--bg-main); border: none; padding: 0;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px;">
+            <div>
+                <h2>Syllabus Tracker</h2>
+                <p>Track your progress across all activity types. Hover over a row to flag as LDR or set difficulty.</p>
+                <p style="font-size: 11px; color: var(--lime); margin-top: -16px;">★ A unit is considered 100% complete only when First Reading, Questions, and Writing are all checked.</p>
+            </div>
+            <button class="btn-secondary" id="toggle-syllabus-btn" onclick="toggleCompletedSyllabus()" style="margin-top: 10px;">Hide Completed Units</button>
+        </div>
+        <div id="syllabus-content-container"></div>
+    </div>
+
+    <div id="timeline" class="tab-section simple-tab">
+        <h2>Timeline & Strategy</h2>
+        <div class="panel" style="background: rgba(212, 255, 42, 0.05); border: 1px solid var(--lime); margin-bottom: 24px;">
+            <div class="panel-title" style="color: var(--lime);">Study Velocity (Reverse Countdown)</div>
+            <div id="velocity-display" style="font-size: 16px; margin: 12px 0; color: #ddd; line-height: 1.5;">
+                Calculating your daily unit requirement...
+            </div>
+        </div>
+        <div class="panel" style="margin-bottom: 24px;">
+            <div class="panel-title">Mock Test Tracker</div>
+            <p style="font-size: 12px; color: var(--text-muted); margin-top: 8px; margin-bottom: 16px;">Log your mock test scores to analyze your performance and trend.</p>
+            <div style="display: flex; gap: 12px; margin-bottom: 24px; align-items: flex-end;">
+                <div style="flex: 2;">
+                    <label style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px; display: block;">Subject</label>
+                    <select id="mt-subject-select"></select>
+                </div>
+                <div style="flex: 1;">
+                    <label style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px; display: block;">Marks Obtained</label>
+                    <input type="number" id="mt-obtained" placeholder="e.g., 75">
+                </div>
+                <div style="flex: 1;">
+                    <label style="font-size: 10px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px; display: block;">Total Marks</label>
+                    <input type="number" id="mt-total" placeholder="100" value="100">
+                </div>
+                <button class="btn-primary" style="margin: 0; padding: 10px 24px; height: 38px; display: flex; align-items: center;" onclick="logMockTest()">+ Log Test</button>
+            </div>
+            <table class="mt-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Subject</th>
+                        <th>Score</th>
+                        <th>Percentage</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="mt-history-body"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="settings" class="tab-section simple-tab">
+        <h2>Settings</h2>
+        <p>Configure your exams, profile, and interface preferences.</p>
+        <div class="input-group">
+            <label>Name</label>
+            <input type="text" id="setting-name">
+            <label>Course Stage</label>
+            <select id="course-stage-select">
+                <option value="CA Foundation">CA Foundation</option>
+                <option value="CA Intermediate">CA Intermediate</option>
+                <option value="CA Final">CA Final</option>
+            </select>
+            <label>Prep Start Date</label>
+            <input type="date" id="setting-start-date">
+            <label id="label-group1">Exam Date</label>
+            <input type="date" id="date-group1">
+            <div id="group2-date-container" style="display: none; flex-direction: column;">
+                <label>Group 2 Exam Date</label>
+                <input type="date" id="date-group2">
+            </div>
+            
+            <div class="section-divider" style="margin-top: 32px; margin-bottom: 24px;">Cloud Sync (Encrypted Data Storage)</div>
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">Set a unique Room ID and a Password. Your detailed data is encrypted locally before being sent to Firebase. It cannot be read without this password.</p>
+            <label>My Room ID</label>
+            <input type="text" id="setting-room-id" placeholder="e.g., my-private-123" style="margin-bottom: 12px;">
+            <label>My Room Password</label>
+            <input type="password" id="setting-room-password" placeholder="Enter a secret password" style="margin-bottom: 12px;">
+
+            <div class="section-divider" style="margin-top: 32px; margin-bottom: 24px;">Peer Comparison (Public Dashboard)</div>
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">Enter a friend's Room ID here. The app will fetch their unencrypted public stats (Syllabus %, Total Hours) for comparison. No password required.</p>
+            <label>Friend's Room ID</label>
+            <input type="text" id="setting-friend-room-id" placeholder="e.g., buddy-private-456" style="margin-bottom: 12px;">
+
+            <button class="btn-primary" style="background: white;" onclick="saveSettings()">Save Changes & Reload</button>
+
+            <div class="section-divider" style="margin-top: 32px; margin-bottom: 24px;">Focus Mode Notifications</div>
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">Grant permission to receive desktop alerts when your Pomodoro timer finishes, even if you are in a fullscreen lecture.</p>
+            <button class="btn-secondary" onclick="requestNotificationPermission()">Enable Desktop Notifications</button>
+            
+            <div class="section-divider" style="margin-top: 32px; margin-bottom: 24px;">Help & Support</div>
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">Need help, have feedback, or found a bug? Contact the developer directly.</p>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <button class="btn-secondary" id="copy-email-btn" onclick="copySupportEmail()" style="margin: 0; padding: 10px 16px;">✉️ Copy Support Email</button>
+                <span id="copy-toast" style="color: var(--lime); font-size: 12px; display: none; font-weight: 600;">✓ Copied to clipboard!</span>
+            </div>
+
+            <div class="section-divider" style="margin-top: 32px; margin-bottom: 24px;">Danger Zone</div>
+            <p style="font-size: 12px; color: var(--pink); margin-bottom: 16px;">This will permanently delete all your logged hours, completed topics, LDRs, and mock tests in the current Room ID.</p>
+            <button class="btn-danger" style="width: max-content;" onclick="resetUserData()">⚠️ Reset All Tracker Data</button>
+        </div>
+    </div>
+
+    <div class="floating-timer" id="timer-box">
+        <div class="timer-tabs">
+            <div class="timer-tab active" id="tab-stopwatch" onclick="setTimerMode('stopwatch')">Stopwatch</div>
+            <div class="timer-tab" id="tab-pomodoro" onclick="setTimerMode('pomodoro')">Pomodoro</div>
+        </div>
+        <div class="timer-display-area">
+            <div class="timer-display" id="master-timer-display">00:00</div>
+            <div class="pomo-durations" id="pomo-options">
+                <span class="selected" id="pomo-25" onclick="setPomoDuration(25)">25m</span>
+                <span id="pomo-50" onclick="setPomoDuration(50)">50m</span>
+            </div>
+        </div>
+        <div class="timer-controls">
+            <button class="timer-btn play" id="timer-play-btn" onclick="toggleMasterTimer()">▶</button>
+            <button class="timer-btn" onclick="resetMasterTimer()">↻</button>
+        </div>
+        <button class="log-time-btn" id="log-time-btn" onclick="pushTimeToLog()">Log 0m to Tracker</button>
+    </div>
+
+    <script>
+        // --- 1. CONFIG & STATIC DATA ---
+       <script src="config.js"></script>
+
+        const syllabusData = {
+            "CA Foundation": {
+                hasGroups: false,
+                papers: [
+                    { 
+                        name: "Paper 1: Accounting",        
+                        parts: [
+                            "Ch 1 Unit 1: Meaning and Scope of Accounting", "Ch 1 Unit 2: Accounting Concepts, Principles and Conventions",
+                            "Ch 1 Unit 3: Capital and Revenue Expenditures and Receipts", "Ch 1 Unit 4: Contingent Assets and Contingent Liabilities",
+                            "Ch 1 Unit 5: Accounting Policies", "Ch 1 Unit 6: Accounting as a Measurement Discipline", "Ch 1 Unit 7: Accounting Standards",
+                            "Ch 2 Unit 1: Basic Accounting Procedures – Journal entries", "Ch 2 Unit 2: Ledgers", "Ch 2 Unit 3: Trial Balance",
+                            "Ch 2 Unit 4: Subsidiary Books", "Ch 2 Unit 5: Cash Book", "Ch 2 Unit 6: Rectification of Errors", "Ch 3: Bank Reconciliation Statement",
+                            "Ch 4: Inventories", "Ch 5: Depreciation and Amortisation", "Ch 6: Bills of Exchange and Promissory Notes",
+                            "Ch 7 Unit 1: Final Accounts of Non-Manufacturing Entities", "Ch 7 Unit 2: Final Accounts of Manufacturing Entities",
+                            "Ch 8: Financial Statements of Not-for-Profit Organisations", "Ch 9: Accounts from Incomplete Records",
+                            "Ch 10 Unit 1: Introduction to Partnership Accounts", "Ch 10 Unit 2: Treatment of Goodwill in Partnership Accounts",
+                            "Ch 10 Unit 3: Admission of a New Partner", "Ch 10 Unit 4: Retirement of a Partner", "Ch 10 Unit 5: Death of a Partner",
+                            "Ch 10 Unit 6: Dissolution of Partnership Firms and LLPs", "Ch 11 Unit 1: Introduction to Company Accounts",
+                            "Ch 11 Unit 2: Issue, Forfeiture and Re-Issue of Shares", "Ch 11 Unit 3: Issue of Debentures",
+                            "Ch 11 Unit 4: Accounting for Bonus Issue and Right Issue", "Ch 11 Unit 5: Redemption of Preference Shares", "Ch 11 Unit 6: Redemption of Debentures"
+                        ] 
+                    },
+                    { 
+                        name: "Paper 2: Business Laws",     
+                        parts: [
+                            "Ch 1: Indian Regulatory Framework", "Ch 2 Unit 1: Nature of Contracts", "Ch 2 Unit 2: Consideration",
+                            "Ch 2 Unit 3: Other Essential Elements of a Contract", "Ch 2 Unit 4: Performance of Contract",
+                            "Ch 2 Unit 5: Breach of Contract and its Remedies", "Ch 2 Unit 6: Contingent and Quasi Contracts",
+                            "Ch 2 Unit 7: Contract of Indemnity and Guarantee", "Ch 2 Unit 8: Bailment and Pledge", "Ch 2 Unit 9: Agency",
+                            "Ch 3 Unit 1: Formation of the Contract of Sale", "Ch 3 Unit 2: Conditions & Warranties",
+                            "Ch 3 Unit 3: Transfer of Ownership and Delivery of Goods", "Ch 3 Unit 4: Unpaid Seller",
+                            "Ch 4 Unit 1: General Nature of Partnership", "Ch 4 Unit 2: Relations of Partners",
+                            "Ch 4 Unit 3: Registration and Dissolution of a Firm", "Ch 5: The Limited Liability Partnership Act, 2008",
+                            "Ch 6: The Companies Act, 2013", "Ch 7: The Negotiable Instruments Act, 1881"
+                        ] 
+                    },
+                    { 
+                        name: "Paper 3: Quantitative Aptitude",   
+                        parts: [
+                            "Ch 1: Ratio and Proportion, Indices, Logarithms", "Ch 2: Equations", "Ch 3: Linear Inequalities", "Ch 4: Mathematics of Finance",
+                            "Ch 5: Basic Concepts of Permutations and Combinations", "Ch 6: Sequence and Series – Arithmetic and Geometric Progressions",
+                            "Ch 7: Sets, Relations and Functions, Basics of Limits and Continuity functions", "Ch 8: Basic Applications of Differential and Integral Calculus",
+                            "Ch 9: Number Series, Coding and Decoding and Odd Man Out", "Ch 10: Direction Sense Test", "Ch 11: Seating Arrangements",
+                            "Ch 12: Blood Relations", "Ch 13 Unit I: Statistical Description of Data", "Ch 13 Unit II: Sampling",
+                            "Ch 14 Unit I: Measures of Central Tendency", "Ch 14 Unit II: Dispersion", "Ch 15: Probability",
+                            "Ch 16: Theoretical Distributions", "Ch 17: Correlation and Regression", "Ch 18: Index Numbers"
+                        ] 
+                    },
+                    { 
+                        name: "Paper 4: Business Economics",         
+                        parts: [
+                            "Ch 1 Unit 1: Introduction to Business Economics", "Ch 1 Unit 2: Basic Problems of an Economy & Role of Price Mechanism",
+                            "Ch 2 Unit 1: Law of Demand and Elasticity of Demand", "Ch 2 Unit 2: Theory of Consumer Behaviour", "Ch 2 Unit 3: Supply",
+                            "Ch 3 Unit 1: Theory of Production", "Ch 3 Unit 2: Theory of Cost", "Ch 4 Unit 1: Meaning and Types of Markets",
+                            "Ch 4 Unit 2: Determination of Prices", "Ch 4 Unit 3: Price Output Determination under Different Market Forms",
+                            "Ch 5: Business Cycles", "Ch 6 Unit 1: National Income Accounting", "Ch 6 Unit 2: The Keynesian Theory of Determination of National Income",
+                            "Ch 7 Unit 1: Fiscal Functions: An Overview, Centre and State Finance", "Ch 7 Unit 2: Market Failure/ Government intervention",
+                            "Ch 7 Unit 3: Budget Making, Expenditure, Public Debt", "Ch 7 Unit 4: Fiscal Policy", "Ch 8 Unit 1: The Concept of Money Demand",
+                            "Ch 8 Unit 2: The Concept of Money Supply", "Ch 8 Unit 3: Monetary Policy", "Ch 9 Unit 1: Theories of International Trade",
+                            "Ch 9 Unit 2: The Instruments of Trade Policy", "Ch 9 Unit 3: Trade Negotiations", "Ch 9 Unit 4: Exchange Rate and Its Economic Effects",
+                            "Ch 9 Unit 5: International Capital Movements", "Ch 10: Indian Economy"
+                        ] 
+                    }
+                ]
+            },
+            "CA Intermediate": {
+                hasGroups: true,
+                group1: [
+                    { 
+                        name: "Paper 1: Advanced Accounting", 
+                        parts: [
+                            "Ch 1: Introduction to Accounting Standards", "Ch 2: Framework for Preparation and Presentation of Financial Statements",
+                            "Ch 3: Applicability of Accounting Standards", "Ch 4 Unit 1: AS 1 Disclosure of Accounting Policies",
+                            "Ch 4 Unit 2: AS 3 Cash Flow Statement", "Ch 4 Unit 3: AS 17 Segment Reporting", "Ch 4 Unit 4: AS 18 Related Party Disclosures",
+                            "Ch 4 Unit 5: AS 20 Earnings Per Share", "Ch 4 Unit 6: AS 24 Discontinuing Operations", "Ch 4 Unit 7: AS 25 Interim Financial Reporting",
+                            "Ch 5 Unit 1: AS 2 Valuation of Inventory", "Ch 5 Unit 2: AS 10 Property, Plant and Equipment",
+                            "Ch 5 Unit 3: AS 13 Accounting for Investments", "Ch 5 Unit 4: AS 16 Borrowing Costs", "Ch 5 Unit 5: AS 19 Leases",
+                            "Ch 5 Unit 6: AS 26 Intangible Assets", "Ch 5 Unit 7: AS 28 Impairment of Assets", "Ch 6 Unit 1: AS 15 Employee Benefits",
+                            "Ch 6 Unit 2: AS 29 (Revised) Provisions, Contingent Liabilities and Contingent Assets", "Ch 7 Unit 1: AS 4 Contingencies and Events occurring after the Balance Sheet Date",
+                            "Ch 7 Unit 2: AS 5 Net Profit or Loss for the Period, Prior Period Items and Changes in Accounting Policies",
+                            "Ch 7 Unit 3: AS 11 The Effects of Changes in Foreign Exchange Rates", "Ch 7 Unit 4: AS 22 Accounting for Taxes on Income",
+                            "Ch 8 Unit 1: AS 7 Construction Contracts", "Ch 8 Unit 2: AS 9 Revenue Recognition", "Ch 9 Unit 1: AS 12 Accounting for Government Grants",
+                            "Ch 9 Unit 2: AS 14 Accounting for Amalgamations", "Ch 10 Unit 1: AS 21 Consolidated Financial Statements",
+                            "Ch 10 Unit 2: AS 23 Accounting for Investments in Associates in Consolidated Financial Statements",
+                            "Ch 10 Unit 3: AS 27 Financial Reporting of Interests in Joint Ventures", "Ch 11 Unit 1: Preparation of Financial Statements",
+                            "Ch 11 Unit 2: Cash Flow Statement", "Ch 12: Buyback of Securities", "Ch 13: Amalgamation of Companies",
+                            "Ch 14: Internal Reconstruction", "Ch 15: Accounting for Branches including Foreign Branches"
+                        ] 
+                    },
+                    { 
+                        name: "Paper 2: Corporate and Other Laws", 
+                        parts: [
+                            "Ch 1: Preliminary", "Ch 2: Incorporation of Company and Matters Incidental Thereto", "Ch 3: Prospectus and Allotment of Securities",
+                            "Ch 4: Share Capital and Debentures", "Ch 5: Acceptance of Deposits by Companies", "Ch 6: Registration of Charges",
+                            "Ch 7: Management & Administration", "Ch 8: Declaration and Payment of Dividend", "Ch 9: Accounts of Companies",
+                            "Ch 10: Audit and Auditors", "Ch 11: Companies Incorporated Outside India", "Ch 12: The Limited Liability Partnership Act, 2008",
+                            "Other Laws Ch 1: The General Clauses Act, 1897", "Other Laws Ch 2: Interpretation of Statutes", "Other Laws Ch 3: The Foreign Exchange Management Act, 1999"
+                        ] 
+                    },
+                    { 
+                        name: "Paper 3: Taxation", 
+                        parts: [
+                            "Income Tax Ch 1: Basic Concepts", "Income Tax Ch 2: Residence and Scope of Total Income", "Income Tax Ch 3 Unit 1: Salaries",
+                            "Income Tax Ch 3 Unit 2: Income from House Property", "Income Tax Ch 3 Unit 3: Profits and Gains of Business or Profession",
+                            "Income Tax Ch 3 Unit 4: Capital Gains", "Income Tax Ch 3 Unit 5: Income from Other Sources", "Income Tax Ch 4: Income of Other Persons included in Assessee's Total Income",
+                            "Income Tax Ch 5: Aggregation of Income, Set-Off and Carry Forward of Losses", "Income Tax Ch 6: Deductions from Gross Total Income",
+                            "Income Tax Ch 7: Advance Tax, Tax Deduction at Source and Tax Collection at Source", "Income Tax Ch 8: Provisions for filing Return of Income and Self Assessment",
+                            "Income Tax Ch 9: Income Tax Liability - Computation and Optimisation", "GST Ch 1: GST in India - An Introduction", "GST Ch 2: Supply under GST",
+                            "GST Ch 3: Charge of GST", "GST Ch 4: Place of Supply", "GST Ch 5: Exemptions from GST", "GST Ch 6: Time of Supply", "GST Ch 7: Value of Supply",
+                            "GST Ch 8: Input Tax Credit", "GST Ch 9: Registration", "GST Ch 10: Tax Invoice; Credit and Debit Notes", "GST Ch 11: Accounts and Records",
+                            "GST Ch 12: E-Way Bill", "GST Ch 13: Payment of Tax", "GST Ch 14: Tax Deduction at Source and Collection of Tax at Source", "GST Ch 15: Returns"
+                        ] 
+                    }
+                ],
+                group2: [
+                    { 
+                        name: "Paper 4: Cost and Management Accounting", 
+                        parts: [
+                            "Ch 1: Introduction to Cost and Management Accounting", "Ch 2: Material Cost", "Ch 3: Employee Cost and Direct Expenses",
+                            "Ch 4: Overheads – Absorption Costing Method", "Ch 5: Activity Based Costing", "Ch 6: Cost Sheet", "Ch 7: Cost Accounting Systems",
+                            "Ch 8: Unit & Batch Costing", "Ch 9: Job Costing", "Ch 10: Process & Operation Costing", "Ch 11: Joint Products and By Products",
+                            "Ch 12: Service Costing", "Ch 13: Standard Costing", "Ch 14: Marginal Costing", "Ch 15: Budgets and Budgetary Control"
+                        ] 
+                    },
+                    { 
+                        name: "Paper 5: Auditing and Ethics", 
+                        parts: [
+                            "Ch 1: Nature, Objective and Scope of Audit", "Ch 2: Audit Strategy, Audit Planning and Audit Programme",
+                            "Ch 3: Risk Assessment and Internal Control", "Ch 4: Audit Evidence", "Ch 5: Audit of Items of Financial Statements",
+                            "Ch 6: Audit Documentation", "Ch 7: Completion and Review", "Ch 8: Audit Report", "Ch 9: Special Features of Audit of Different Type of Entities",
+                            "Ch 10: Audit of Banks", "Ch 11: Ethics and Terms of Audit Engagements"
+                        ] 
+                    },
+                    { 
+                        name: "Paper 6: Financial Management and Strategic Management", 
+                        parts: [
+                            "FM Ch 1: Scope and Objectives of Financial Management", "FM Ch 2: Types of Financing", "FM Ch 3: Financial Analysis and Planning – Ratio Analysis",
+                            "FM Ch 4: Cost of Capital", "FM Ch 5: Financing Decisions – Capital Structure", "FM Ch 6: Financing Decisions – Leverages",
+                            "FM Ch 7: Investment Decisions", "FM Ch 8: Dividend Decision", "FM Ch 9 Unit I: Introduction to Working Capital Management",
+                            "FM Ch 9 Unit II: Treasury and Cash Management", "FM Ch 9 Unit III: Management of Inventory", "FM Ch 9 Unit IV: Management of Receivables",
+                            "FM Ch 9 Unit V: Management of Payables (Creditors)", "FM Ch 9 Unit VI: Financing of Working Capital", "SM Ch 1: Introduction to Strategic Management",
+                            "SM Ch 2: Strategic Analysis: External Environment", "SM Ch 3: Strategic Analysis: Internal Environment", "SM Ch 4: Strategic Choices",
+                            "SM Ch 5: Strategy Implementation and Evaluation"
+                        ] 
+                    }
+                ]
+            },
+            "CA Final": {
+                hasGroups: true,
+                group1: [
+                    { 
+                        name: "Paper 1: Financial Reporting", 
+                        parts: [
+                            "Ch 1: Introduction to Indian Accounting Standards", "Ch 2: Conceptual Framework for Financial Reporting under Ind AS",
+                            "Ch 3 Unit 1: Ind AS 1 Presentation of Financial Statements", "Ch 3 Unit 2: Ind AS 34 Interim Financial Reporting",
+                            "Ch 3 Unit 3: Ind AS 7 Statement of Cash Flows", "Ch 4 Unit 1: Ind AS 8 Accounting Policies, Changes in Accounting Estimates and Errors",
+                            "Ch 4 Unit 2: Ind AS 10 Events after the Reporting Period", "Ch 4 Unit 3: Ind AS 113 Fair Value Measurement",
+                            "Ch 5 Unit 1: Ind AS 2 Inventories", "Ch 5 Unit 2: Ind AS 16 Property, Plant and Equipment", "Ch 5 Unit 3: Ind AS 23 Borrowing Costs",
+                            "Ch 5 Unit 4: Ind AS 36 Impairment of Assets", "Ch 5 Unit 5: Ind AS 38 Intangible Assets", "Ch 5 Unit 6: Ind AS 40 Investment Property",
+                            "Ch 5 Unit 7: Ind AS 105 Non-current Assets Held for Sale and Discontinued Operations", "Ch 5 Unit 8: Ind AS 116 Leases",
+                            "Ch 6 Unit 1: Ind AS 19 Employee Benefits", "Ch 6 Unit 2: Ind AS 37 Provisions, Contingent Liabilities and Contingent Assets",
+                            "Ch 7 Unit 1: Ind AS 12 Income Taxes", "Ch 7 Unit 2: Ind AS 21 The Effects of Changes in Foreign Exchange Rates",
+                            "Ch 8 Unit 1: Ind AS 24 Related Party Disclosures", "Ch 8 Unit 2: Ind AS 33 Earnings per Share", "Ch 8 Unit 3: Ind AS 108 Operating Segments",
+                            "Ch 9: Ind AS 115 Revenue from Contracts with Customers", "Ch 10 Unit 1: Ind AS 41 Agriculture",
+                            "Ch 10 Unit 2: Ind AS 20 Accounting for Government Grants and Disclosure", "Ch 10 Unit 3: Ind AS 102 Share Based Payment",
+                            "Ch 11 Unit 1: Financial Instruments: Scope and Definitions", "Ch 11 Unit 2: Classification and Measurement of Financial Assets and Liabilities",
+                            "Ch 11 Unit 3: Financial Instruments: Equity and Financial Liabilities", "Ch 11 Unit 4: Derivatives and Embedded Derivatives",
+                            "Ch 11 Unit 5: Recognition and Derecognition of Financial Instruments", "Ch 11 Unit 6: Hedge Accounting", "Ch 11 Unit 7: Disclosures",
+                            "Ch 12: Ind AS 103 Business Combinations", "Ch 13 Unit 1: Introduction to Consolidated and Separate Financial Statements",
+                            "Ch 13 Unit 2: Important Definitions", "Ch 13 Unit 3: Consolidated Financial Statements", "Ch 13 Unit 4: Ind AS 110 Consolidation Procedure for Subsidiaries",
+                            "Ch 13 Unit 5: Ind AS 111 Joint Arrangements", "Ch 13 Unit 6: Ind AS 28 Investments in Associates and Joint Ventures",
+                            "Ch 13 Unit 7: Ind AS 27 Separate Financial Statements", "Ch 13 Unit 8: Disclosures", "Ch 14: Ind AS 101 First-time Adoption of Ind AS",
+                            "Ch 15: Analysis of Financial Statements", "Ch 16: Professional and Ethical Duty of a Chartered Accountant", "Ch 17: Accounting and Technology"
+                        ] 
+                    },
+                    { 
+                        name: "Paper 2: Advanced Financial Management", 
+                        parts: [
+                            "Ch 1: Financial Policy and Corporate Strategy", "Ch 2: Risk Management", "Ch 3: Advanced Capital Budgeting Decisions",
+                            "Ch 4: Security Analysis", "Ch 5: Security Valuation", "Ch 6: Portfolio Management", "Ch 7: Securitization", "Ch 8: Mutual Funds",
+                            "Ch 9: Derivatives Analysis and Valuation", "Ch 10: Foreign Exchange Exposure and Risk Management", "Ch 11: International Financial Management",
+                            "Ch 12: Interest Rate Risk Management", "Ch 13: Business Valuation", "Ch 14: Mergers, Acquisitions and Corporate Restructuring", "Ch 15: Startup Finance"
+                        ] 
+                    },
+                    { 
+                        name: "Paper 3: Advanced Auditing, Assurance and Professional Ethics", 
+                        parts: [
+                            "Ch 1: Quality Control", "Ch 2: General Auditing Principles and Auditors Responsibilities", "Ch 3: Audit Planning, Strategy and Execution",
+                            "Ch 4: Materiality, Risk Assessment and Internal Control", "Ch 5: Audit Evidence", "Ch 6: Completion and Review", "Ch 7: Reporting",
+                            "Ch 8: Specialised Areas", "Ch 9: Related Services", "Ch 10: Review of Financial Information", "Ch 11: Prospective Financial Information and Other Assurance Services",
+                            "Ch 12: Digital Auditing & Assurance", "Ch 13: Group Audits", "Ch 14 Unit 1: Special Features of Audit of Banks", "Ch 14 Unit 2: Non-Banking Financial Companies",
+                            "Ch 15: Overview of Audit of Public Sector Undertakings", "Ch 16: Internal Audit", "Ch 17: Due Diligence, Investigation & Forensic Accounting",
+                            "Ch 18: Sustainable Development Goals (SDG) & ESG Assurance", "Ch 19: Professional Ethics & Liabilities of Auditors"
+                        ] 
+                    }
+                ],
+                group2: [
+                    { 
+                        name: "Paper 4: Direct Tax Laws & International Taxation", 
+                        parts: [
+                            "DT Ch 1: Basic Concepts", "DT Ch 2: Incomes which do not form part of Total Income", "DT Ch 3: Profits and Gains of Business or Profession",
+                            "DT Ch 4: Capital Gains", "DT Ch 5: Income from Other Sources", "DT Ch 6: Income of Other Persons included in Assessee's Total Income",
+                            "DT Ch 7: Aggregation of Income, Set Off or Carry Forward of Losses", "DT Ch 8: Deductions from Gross Total Income", "DT Ch 9: Assessment of Various Entities",
+                            "DT Ch 10: Assessment of Trusts and Institutions, Political Parties and Other Special Entities", "DT Ch 11: Tax Planning, Tax Avoidance and Tax Evasion",
+                            "DT Ch 12: Taxation of Digital Transactions", "DT Ch 13: Deduction, Collection and Recovery of Tax", "DT Ch 14: Income Tax Authorities",
+                            "DT Ch 15: Assessment Procedure", "DT Ch 16: Appeals and Revision", "DT Ch 17: Dispute Resolution", "DT Ch 18: Miscellaneous Provisions",
+                            "DT Ch 19: Provisions to Counteract Unethical Tax Practices", "DT Ch 20: Tax Audit and Ethical Compliances", "IT Ch 21: Non Resident Taxation",
+                            "IT Ch 22: Double Taxation Relief", "IT Ch 23: Advance Rulings", "IT Ch 24: Transfer Pricing", "IT Ch 25: Fundamentals of BEPS",
+                            "IT Ch 26: Application and Interpretation of Tax Treaties", "IT Ch 27: Overview of Model Tax Conventions", "IT Ch 28: Latest Developments in International Taxation"
+                        ] 
+                    },
+                    { 
+                        name: "Paper 5: Indirect Tax Laws", 
+                        parts: [
+                            "GST Ch 1: Supply under GST", "GST Ch 2: Charge of GST", "GST Ch 3: Place of Supply", "GST Ch 4: Exemptions from GST", "GST Ch 5: Time of Supply",
+                            "GST Ch 6: Value of Supply", "GST Ch 7: Input Tax Credit", "GST Ch 8: Registration", "GST Ch 9: Tax Invoice, Credit and Debit Notes",
+                            "GST Ch 10: Accounts and Records; E-way Bill", "GST Ch 11: Payment of Tax", "GST Ch 12: Electronic Commerce Transactions", "GST Ch 13: Returns",
+                            "GST Ch 14: Import and Export Under GST", "GST Ch 15: Refunds", "GST Ch 16: Job Work", "GST Ch 17: Assessment and Audit",
+                            "GST Ch 18: Inspection, Search, Seizure and Arrest", "GST Ch 19: Demands and Recovery", "GST Ch 20: Liability to Pay in Certain Cases",
+                            "GST Ch 21: Offences and Penalties and Ethical Aspects under GST", "GST Ch 22: Appeals and Revision", "GST Ch 23: Advance Ruling",
+                            "GST Ch 24: Miscellaneous Provisions", "Customs Ch 1 Unit I: Introduction to Customs Law", "Customs Ch 1 Unit II: Levy and Exemptions",
+                            "Customs Ch 2: Types of Duty", "Customs Ch 3: Classification of Imported and Export Goods", "Customs Ch 4: Valuation under the Customs Act, 1962",
+                            "Customs Ch 5: Importation and Exportation of Goods", "Customs Ch 6: Warehousing", "Customs Ch 7: Refund", "FTP Ch 8 Unit I: Introduction to FTP",
+                            "FTP Ch 8 Unit II: Basic Concepts relating to Export Promotion Schemes under FTP"
+                        ] 
+                    },
+                    { 
+                        name: "Paper 6: Integrated Business Solutions", 
+                        parts: [
+                            "Vol 1: Case Study 1: Caber Cabs", "Vol 1: Case Study 2: SG", "Vol 1: Case Study 3: Refresh Tea", "Vol 1: Case Study 4: Becky Bond",
+                            "Vol 1: Case Study 5: Luminous", "Vol 1: Case Study 6: Manu and Tanu", "Vol 1: Case Study 7: Connect", "Vol 1: Case Study 8: Standard Tea",
+                            "Vol 1: Case Study 9: Sahana", "Vol 1: Case Study 10: Apara", "Vol 1: Case Study 11: V-Cure", "Vol 1: Case Study 12: MNO",
+                            "Vol 1: Case Study 13: KG Airlines", "Vol 1: Case Study 14: Home Fab", "Vol 1: Case Study 15: DSB", "Vol 1: Case Study 16: PurchaseOnn",
+                            "Vol 1: Case Study 17: Maxplus", "Vol 1: Case Study 18: Soft Tech", "Vol 1: Case Study 19: Mr. Pardeep", "Vol 1: Case Study 20: CA. Arvind",
+                            "Vol 1: Case Study 21: Cycles India", "Vol 1: Case Study 22: Mr. Manish", "Vol 1: Case Study 23: ABCD", "Vol 1: Case Study 24: CA Parminder",
+                            "Vol 1: Case Study 25: Fresh Foods", "Vol 1: Case Study 26: MTL", "Vol 1: Case Study 27: Anupma", "Vol 1: Case Study 28: BL",
+                            "Vol 1: Case Study 29: YK & Associates", "Vol 1: Case Study 30: WDG", "Vol 1: Case Study 31: FST", "Vol 1: Case Study 32: Murli",
+                            "Vol 1: Case Study 33: Prime Tea", "Vol 1: Case Study 34: LWS", "Vol 1: Case Study 35: Wanton", "Vol 1: Case Study 36: StayInn",
+                            "Vol 1: Case Study 37: Riddhi and Siddhi", "Vol 1: Case Study 38: BASP", "Vol 1: Case Study 39: Yantra", "Vol 1: Case Study 40: RPL",
+                            "Vol 1: Case Study 41: BCPL", "Vol 1: Case Study 42: Kushal", "Vol 1: Case Study 43: Home Décor", "Vol 1: Case Study 44: HotSip",
+                            "Vol 1: Case Study 45: Indian Watches", "Vol 1: Case Study 46: Bhartiya 3D", "Vol 1: Case Study 47: Thunderbolt", "Vol 1: Case Study 48: Manpower",
+                            "Vol 1: Case Study 49: CA. M", "Vol 1: Case Study 50: GrowFine", "Vol 2: Case study 1: Dakshin Fertilizers and Petrochem Ltd.",
+                            "Vol 2: Case study 2: Crop Yield Private Limited", "Vol 2: Case study 3: JayZee Ltd.", "Vol 2: Case study 4: VEN Private Limited",
+                            "Vol 2: Case study 5: Safe and Wise Advisory Limited", "Vol 2: Case study 6: Bharat Tech 3D", "Vol 2: Case study 7: Agrofine",
+                            "Vol 2: Case study 8: Shakti Agrochemical Limited.", "Vol 2: Case study 9: HomeInn Limited", "Vol 2: Case study 10: Rahul & Raj Films Ltd.",
+                            "Vol 2: Case study 11: Dev Products Ltd.", "Vol 2: Case study 12: Doormato Ltd.", "Vol 2: Case study 13: EcoTech Innovations Pvt. Ltd.",
+                            "Vol 2: Case study 14: A Ltd.", "Vol 2: Case study 15: SarTaj Hotels Limited", "Vol 2: Case study 16: Fastest Finger Limited",
+                            "Vol 2: Case study 17: Aadhya Ltd.", "Vol 2: Case study 18: Bharat Computers Limited.", "Vol 2: Case study 19: Green Energy Ltd.",
+                            "Vol 2: Case study 20: Diamond Limited", "Vol 2: Case study 21: Classic Dealership", "Vol 2: Case study 22: Rathvaan Pvt. Ltd.",
+                            "Vol 2: Case study 23: RQ Ltd.", "Vol 2: Case study 24: FrontRunner Pvt. Ltd.", "Vol 2: Case study 25: Nexus Ltd."
+                        ] 
+                    }
+                ]
+            }
+        };
+
+        // --- 2. HELPER FUNCTIONS & QUOTA MONITOR ---
+        function getCheckboxKey(subject, topic, activity) { return `${subject}||${topic}||${activity}`; }
+
+        function getSyllabusStats(checksObj, stage) {
+            const data = syllabusData[stage];
+            if (!data) return { completed: 0, total: 0, pct: 0 };
+            
+            const allPapers = data.hasGroups ? [...data.group1, ...data.group2] : data.papers;
+            let totalUnitsCount = 0;
+            let totalCompletedCount = 0;
+
+            allPapers.forEach(paper => {
+                totalUnitsCount += paper.parts.length;
+                paper.parts.forEach(part => {
+                    const fr = checksObj[getCheckboxKey(paper.name, part, 'FR')];
+                    const q  = checksObj[getCheckboxKey(paper.name, part, 'Q')];
+                    const w  = checksObj[getCheckboxKey(paper.name, part, 'W')];
+                    if (fr && q && w) {
+                        totalCompletedCount++;
+                    }
+                });
+            });
+
+            const pct = totalUnitsCount > 0 ? Math.round((totalCompletedCount / totalUnitsCount) * 100) : 0;
+            return { completed: totalCompletedCount, total: totalUnitsCount, pct: pct };
+        }
+
+        function encryptData(dataObj, pass) {
+            if(!pass) pass = "default_pass";
+            return CryptoJS.AES.encrypt(JSON.stringify(dataObj), pass).toString();
+        }
+
+        function decryptData(ciphertext, pass) {
+            if(!pass) pass = "default_pass";
+            if(!ciphertext) return null;
+            try {
+                const bytes = CryptoJS.AES.decrypt(ciphertext, pass);
+                const decryptedStr = bytes.toString(CryptoJS.enc.Utf8);
+                if(!decryptedStr) return null;
+                return JSON.parse(decryptedStr);
+            } catch(e) {
+                return null;
+            }
+        }
+
+        function copySupportEmail() {
+            navigator.clipboard.writeText("arumanori@gmail.com").then(() => {
+                const toast = document.getElementById('copy-toast');
+                toast.style.display = 'inline-block';
+                setTimeout(() => { toast.style.display = 'none'; }, 2000);
+            }).catch(err => {
+                const textArea = document.createElement("textarea");
+                textArea.value = "arumanori@gmail.com";
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    const toast = document.getElementById('copy-toast');
+                    toast.style.display = 'inline-block';
+                    setTimeout(() => { toast.style.display = 'none'; }, 2000);
+                } catch (err) {
+                    alert("Failed to copy. Please manually email: arumanori@gmail.com");
+                }
+                document.body.removeChild(textArea);
+            });
+        }
+
+        // --- QUOTA MONITOR SYSTEM ---
+        const QuotaMonitor = {
+            getDailyKey: function() {
+                const d = new Date();
+                return `caTracker_usage_${d.getFullYear()}_${d.getMonth()}_${d.getDate()}`;
+            },
+            getUsage: function() {
+                try { return JSON.parse(localStorage.getItem(this.getDailyKey())) || { reads: 0, writes: 0 }; } catch(e) { return { reads: 0, writes: 0 }; }
+            },
+            saveUsage: function(usage) {
+                localStorage.setItem(this.getDailyKey(), JSON.stringify(usage));
+                this.checkQuota(usage);
+            },
+            logRead: function() {
+                let usage = this.getUsage();
+                usage.reads += 1;
+                this.saveUsage(usage);
+            },
+            logWrite: function() {
+                let usage = this.getUsage();
+                usage.writes += 1;
+                this.saveUsage(usage);
+            },
+            checkQuota: function(usage) {
+                const overlay = document.getElementById('quota-warning');
+                const textSpan = document.getElementById('quota-text');
+                if (!overlay || !textSpan) return;
+                
+                // Limits: 50,000 Reads, 20,000 Writes. 80% Threshold: 40,000 Reads, 16,000 Writes.
+                if (usage.reads >= 50000 || usage.writes >= 20000) {
+                    overlay.style.display = 'flex';
+                    overlay.style.backgroundColor = 'var(--pink)';
+                    overlay.style.color = '#fff';
+                    textSpan.innerHTML = `<strong>⚠️ Quota Exceeded:</strong> Daily Firebase free limit reached. Cloud sync paused until midnight.`;
+                } else if (usage.reads >= 40000 || usage.writes >= 16000) {
+                    overlay.style.display = 'flex';
+                    overlay.style.backgroundColor = '#ffb703';
+                    overlay.style.color = '#000';
+                    textSpan.innerHTML = `<strong>⚠️ Low Quota Warning:</strong> You are approaching your daily free database limit (80% used).`;
+                }
+            },
+            showResourceExhausted: function() {
+                const overlay = document.getElementById('quota-warning');
+                const textSpan = document.getElementById('quota-text');
+                if (overlay && textSpan) {
+                    overlay.style.display = 'flex';
+                    overlay.style.backgroundColor = 'var(--pink)';
+                    overlay.style.color = '#fff';
+                    textSpan.innerHTML = `<strong>⚠️ Database Exhausted:</strong> Daily cloud limit reached. Tracker is in offline mode until midnight.`;
+                }
+            }
+        };
+
+        // --- 3. FIREBASE & ENCRYPTED SYNC MANAGER ---
+        let db = null;
+        try {
+            firebase.initializeApp(firebaseConfig);
+            db = firebase.firestore();
+            db.enablePersistence().catch(err => console.log("Offline persistence error:", err.code));
+        } catch(e) {
+            console.log("Firebase not configured correctly yet. Falling back to local storage.");
+        }
+
+        const SyncManager = {
+            data: {},
+            friendData: null,
+            friendDataStatus: "Loading...",
+            isCloudEnabled: !!db,
+            roomID: localStorage.getItem('caTracker_roomID') || 'my-default-room',
+            roomPassword: localStorage.getItem('caTracker_roomPassword') || '',
+            friendRoomID: localStorage.getItem('caTracker_friendRoomID') || '',
+            
+            init: function(callback) {
+                if (this.isCloudEnabled) {
+                    db.collection("users").doc(this.roomID).onSnapshot((doc) => {
+                        QuotaMonitor.logRead(); // Track the read operation
+                        if (doc.exists) {
+                            let remoteData = doc.data();
+                            if(remoteData.payload) {
+                                let dec = decryptData(remoteData.payload, this.roomPassword);
+                                if(dec) {
+                                    this.data = dec;
+                                } else {
+                                    console.error("Failed to decrypt My Room. Wrong password.");
+                                }
+                            } else {
+                                this.data = remoteData; 
+                            }
+                        } else {
+                            this.data = this.loadLocalFallback();
+                            this.forceCloudSync();
+                        }
+                        this.persistLocalBackup();
+                        callback();
+                    }, (error) => {
+                        console.log("Offline mode active.");
+                        if (error.code === 'resource-exhausted') QuotaMonitor.showResourceExhausted();
+                        this.data = this.loadLocalFallback();
+                        callback();
+                    });
+
+                    if (this.friendRoomID) {
+                        db.collection("users").doc(this.friendRoomID).onSnapshot((doc) => {
+                            QuotaMonitor.logRead(); // Track the read operation
+                            if (doc.exists) {
+                                let fRemoteData = doc.data();
+                                if(fRemoteData.public) {
+                                    this.friendData = fRemoteData.public;
+                                    this.friendDataStatus = "Connected";
+                                } else {
+                                    this.friendData = {
+                                        settingsName: fRemoteData.settingsName || "Friend",
+                                        settingsCourse: fRemoteData.settingsCourse || "CA Foundation",
+                                        syllabusPct: getSyllabusStats(fRemoteData.syllabusChecks || {}, fRemoteData.settingsCourse || "CA Foundation").pct,
+                                        totalMinutes: fRemoteData.totalMinutes || 0,
+                                        studiedDaysCount: (fRemoteData.studiedDates || []).length
+                                    };
+                                    this.friendDataStatus = "Connected (Legacy)";
+                                }
+                                renderCompare();
+                            } else {
+                                this.friendData = null;
+                                this.friendDataStatus = "Friend Data Not Found in Database";
+                                renderCompare();
+                            }
+                        }, (error) => {
+                            if (error.code === 'resource-exhausted') QuotaMonitor.showResourceExhausted();
+                        });
+                    } else {
+                        this.friendDataStatus = "No Friend ID Set";
+                    }
+                } else {
+                    this.data = this.loadLocalFallback();
+                    callback();
+                }
+            },
+            
+            save: function(key, value) {
+                this.data[key] = value;
+                this.persistLocalBackup();
+                this.forceCloudSync();
+            },
+            
+            get: function(key, defaultValue) {
+                return this.data.hasOwnProperty(key) ? this.data[key] : defaultValue;
+            },
+
+            remove: function(key) {
+                delete this.data[key];
+                this.persistLocalBackup();
+                this.forceCloudSync();
+            },
+
+            loadLocalFallback: function() {
+                try { return JSON.parse(localStorage.getItem(`caTracker_localBackup_${this.roomID}`)) || {}; } catch(e) { return {}; }
+            },
+
+            persistLocalBackup: function() {
+                localStorage.setItem(`caTracker_localBackup_${this.roomID}`, JSON.stringify(this.data));
+            },
+
+            forceCloudSync: function() {
+                if(this.isCloudEnabled) {
+                    QuotaMonitor.logWrite(); // Track the write operation
+                    const myStage = this.data.settingsCourse || "CA Foundation";
+                    const myStats = getSyllabusStats(this.data.syllabusChecks || {}, myStage);
+                    
+                    const publicData = {
+                        settingsName: this.data.settingsName || "Anonymous",
+                        settingsCourse: myStage,
+                        syllabusPct: myStats.pct,
+                        totalMinutes: this.data.totalMinutes || 0,
+                        studiedDaysCount: (this.data.studiedDates || []).length
+                    };
+
+                    const payload = encryptData(this.data, this.roomPassword);
+                    db.collection("users").doc(this.roomID).set({
+                        public: publicData,
+                        payload: payload
+                    });
+                }
+            }
+        };
+
+        const STORAGE_KEYS = {
+            studiedDates:   'studiedDates',
+            totalMinutes:   'totalMinutes',
+            startDate:      'startDate',
+            syllabusChecks: 'syllabusChecks',
+            sessions:       'sessions',
+            ldrItems:       'ldrItems',
+            settingsName:   'settingsName',
+            settingsCourse: 'settingsCourse',
+            examDate1:      'examDate1',
+            examDate2:      'examDate2',
+            mockTests:      'mockTests',
+            plannerTasks:   'plannerTasks'
+        };
+
+        function getLocalDateString(date = new Date()) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+        function getLocalDateDisplay() { return new Date().toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}); }
+
+        // --- 4. GLOBAL VARIABLES ---
+        let studiedDates = [];
+        let overallTotalMinutes = 0;
+        let syllabusChecks = {};
+        let studySessions = []; 
+        let ldrItems = []; 
+        let mockTests = [];
+        let plannerTasks = {}; 
+        let hideCompletedSyllabus = false;
+
+        const todayStr = getLocalDateString(); 
+        
+        // --- 5. DATA MIDDLEWARE ---
+        SyncManager.init(() => {
+            studiedDates      = SyncManager.get(STORAGE_KEYS.studiedDates, []);
+            overallTotalMinutes = parseInt(SyncManager.get(STORAGE_KEYS.totalMinutes, 0)) || 0;
+            syllabusChecks    = SyncManager.get(STORAGE_KEYS.syllabusChecks, {});
+            studySessions     = SyncManager.get(STORAGE_KEYS.sessions, []); 
+            ldrItems          = SyncManager.get(STORAGE_KEYS.ldrItems, []); 
+            mockTests         = SyncManager.get(STORAGE_KEYS.mockTests, []);
+            plannerTasks      = SyncManager.get(STORAGE_KEYS.plannerTasks, {}); 
+
+            const prepStartDate = SyncManager.get(STORAGE_KEYS.startDate, todayStr);
+            const settingsName = SyncManager.get(STORAGE_KEYS.settingsName, ""); 
+            const settingsCourse = SyncManager.get(STORAGE_KEYS.settingsCourse, "CA Foundation");
+            const examDate1 = SyncManager.get(STORAGE_KEYS.examDate1, "");
+            const examDate2 = SyncManager.get(STORAGE_KEYS.examDate2, "");
+
+            document.getElementById('setting-start-date').value = prepStartDate;
+            document.getElementById('setting-name').value = settingsName;
+            document.getElementById('course-stage-select').value = settingsCourse;
+            document.getElementById('date-group1').value = examDate1;
+            document.getElementById('date-group2').value = examDate2;
+            document.getElementById('setting-room-id').value = SyncManager.roomID;
+            document.getElementById('setting-room-password').value = SyncManager.roomPassword;
+            document.getElementById('setting-friend-room-id').value = SyncManager.friendRoomID;
+
+            updateUIBasedOnCourse();   
+            updateDaysStudiedBox();
+            updateTotalHoursBox();
+            updateConsistencyBox();
+            renderMockTests();
+            renderPlanner(); 
+            updateCountdowns();
+            renderCompare();
+            QuotaMonitor.checkQuota(QuotaMonitor.getUsage()); // Initial check on load
+        });
+
+        const subjectColors  = ['#a29bfe','#fdcb6e','#00cec9','#0984e3','#e84393','#e17055','#55efc4','#ffeaa7'];
+        const activityMap    = {
+            "Lecture":         { code: "Lec", icon: "🎥 Lecture", class: "active-Lec" },
+            "First Reading":   { code: "FR",  icon: "📚 First Reading", class: "active-FR" },
+            "Questions":       { code: "Q",   icon: "✏️ Questions", class: "active-Q" },
+            "Writing Practice":{ code: "W",   icon: "✍️ Writing Practice", class: "active-W" },
+            "Revision":        { code: "Rev", icon: "🔄 Revision", class: "active-Rev" },
+            "Mock Test":       { code: "MT",  icon: "📝 Mock Test", class: "active-MT" }
+        };
+        const activitiesList = Object.values(activityMap);
+        let globalSubjectColorMap = {};
+
+        // --- 6. AUDIO & NOTIFICATIONS ---
+        let audioCtx = null;
+        let activeOscillator = null;
+
+        function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function playBeep() {
+            if (!audioCtx) initAudio();
+            if (activeOscillator) stopAudio(); 
+            
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine'; 
+            osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            osc.start();
+            gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 1.5);
+            osc.stop(audioCtx.currentTime + 1.5);
+            activeOscillator = osc;
+        }
+
+        function stopAudio() {
+            if (activeOscillator) {
+                try { activeOscillator.stop(); } catch(e){}
+                activeOscillator = null;
+            }
+        }
+
+        function requestNotificationPermission() {
+            if (!("Notification" in window)) {
+                alert("This browser does not support desktop notifications.");
+            } else if (Notification.permission === "granted") {
+                alert("Notifications are already enabled!");
+            } else if (Notification.permission !== "denied") {
+                Notification.requestPermission().then((permission) => {
+                    if (permission === "granted") alert("Notifications enabled successfully!");
+                });
+            }
+        }
+
+        function triggerFocusCompleteNotification() {
+            playBeep(); 
+            if ("Notification" in window && Notification.permission === "granted") {
+                new Notification("Pomodoro Complete!", {
+                    body: "Time to take a break. Don't forget to log your minutes!",
+                    icon: "https://cdn-icons-png.flaticon.com/512/3106/3106180.png"
+                });
+            } else {
+                alert("Pomodoro Complete! Time to take a break.");
+            }
+        }
+
+        // --- 7. SYSTEM CLOCK TIMER ENGINE ---
+        let masterTimerInterval;
+        let masterMode = 'stopwatch';
+        let pomoMinutesSetting = 25;
+        let isMasterRunning = false;
+
+        function updateStatusIndicator() {
+            const statusEl = document.getElementById('header-status');
+            const dateStr = getLocalDateDisplay();
+            if(isMasterRunning) {
+                statusEl.innerHTML = `${dateStr} <div class="live-dot" style="background-color: var(--lime); box-shadow: 0 0 8px var(--lime);"></div> <span style="color: var(--lime); font-weight: bold;">FOCUS MODE</span>`;
+            } else {
+                statusEl.innerHTML = `${dateStr} <div class="live-dot"></div> STANDBY`;
+            }
+        }
+
+        function setTimerMode(mode) {
+            if (isMasterRunning) return;
+            masterMode = mode;
+            document.querySelectorAll('.timer-tab').forEach(t => t.classList.remove('active'));
+            document.getElementById('tab-' + mode).classList.add('active');
+            
+            localStorage.setItem('timerStoredSeconds', mode === 'stopwatch' ? 0 : pomoMinutesSetting * 60);
+            document.getElementById('pomo-options').style.display = mode === 'stopwatch' ? 'none' : 'flex';
+            
+            updateMasterDisplay();
+            document.getElementById('log-time-btn').style.display = 'none';
+        }
+
+        function setPomoDuration(mins) {
+            if (isMasterRunning) return;
+            pomoMinutesSetting = mins;
+            localStorage.setItem('timerStoredSeconds', mins * 60);
+            
+            document.getElementById('pomo-25').classList.remove('selected');
+            document.getElementById('pomo-50').classList.remove('selected');
+            document.getElementById('pomo-' + mins).classList.add('selected');
+            updateMasterDisplay();
+        }
+
+        function updateMasterDisplay() {
+            let currentSeconds = parseInt(localStorage.getItem('timerStoredSeconds')) || 0;
+            
+            if (isMasterRunning) {
+                const startTime = parseInt(localStorage.getItem('timerStartTime')) || Date.now();
+                const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                
+                if (masterMode === 'stopwatch') {
+                    currentSeconds = elapsed;
+                } else {
+                    currentSeconds = (pomoMinutesSetting * 60) - elapsed;
+                    if (currentSeconds <= 0) {
+                        currentSeconds = 0;
+                        stopTimerAndNotify();
+                        return; 
+                    }
+                }
+            }
+            
+            const h = Math.floor(currentSeconds / 3600);
+            const m = Math.floor((currentSeconds % 3600) / 60).toString().padStart(2, '0');
+            const s = (currentSeconds % 60).toString().padStart(2, '0');
+            const el = document.getElementById('master-timer-display');
+            
+            if (masterMode === 'stopwatch' && h > 0) {
+                el.textContent = `${h.toString().padStart(2,'0')}:${m}:${s}`;
+                el.style.fontSize = '42px';
+            } else {
+                el.textContent = `${m}:${s}`;
+                el.style.fontSize = '56px';
+            }
+        }
+
+        function toggleMasterTimer() {
+            initAudio(); 
+            const btn = document.getElementById('timer-play-btn');
+            const logBtn = document.getElementById('log-time-btn');
+            
+            if (isMasterRunning) {
+                clearInterval(masterTimerInterval);
+                isMasterRunning = false;
+                localStorage.setItem('isTimerRunning', 'false');
+                
+                const startTime = parseInt(localStorage.getItem('timerStartTime')) || Date.now();
+                const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                let remaining = masterMode === 'stopwatch' ? elapsed : (pomoMinutesSetting * 60) - elapsed;
+                localStorage.setItem('timerStoredSeconds', Math.max(0, remaining));
+                
+                btn.innerHTML = '▶';
+                let loggedMins = getCalculatedMinutes();
+                if (loggedMins > 0) {
+                    logBtn.style.display = 'block';
+                    logBtn.textContent = `Log ${loggedMins}m to Tracker`;
+                }
+                stopAudio(); 
+            } else {
+                isMasterRunning = true;
+                localStorage.setItem('isTimerRunning', 'true');
+                
+                let storedSecs = parseInt(localStorage.getItem('timerStoredSeconds')) || 0;
+                let effectiveStartTime;
+                
+                if (masterMode === 'stopwatch') {
+                    effectiveStartTime = Date.now() - (storedSecs * 1000);
+                } else {
+                    let elapsedSoFar = (pomoMinutesSetting * 60) - storedSecs;
+                    effectiveStartTime = Date.now() - (elapsedSoFar * 1000);
+                }
+                localStorage.setItem('timerStartTime', effectiveStartTime);
+                
+                btn.innerHTML = '⏸';
+                logBtn.style.display = 'none';
+                
+                masterTimerInterval = setInterval(updateMasterDisplay, 500); 
+            }
+            updateStatusIndicator();
+        }
+
+        function stopTimerAndNotify() {
+            clearInterval(masterTimerInterval);
+            isMasterRunning = false;
+            localStorage.setItem('isTimerRunning', 'false');
+            localStorage.setItem('timerStoredSeconds', 0);
+            
+            const btn = document.getElementById('timer-play-btn');
+            const logBtn = document.getElementById('log-time-btn');
+            btn.innerHTML = '▶';
+            logBtn.style.display = 'block';
+            logBtn.textContent = `Log ${pomoMinutesSetting}m to Tracker`;
+            
+            updateStatusIndicator();
+            updateMasterDisplay();
+            triggerFocusCompleteNotification();
+        }
+
+        function resetMasterTimer() {
+            clearInterval(masterTimerInterval);
+            isMasterRunning = false;
+            localStorage.setItem('isTimerRunning', 'false');
+            localStorage.setItem('timerStoredSeconds', masterMode === 'stopwatch' ? 0 : pomoMinutesSetting * 60);
+            
+            document.getElementById('timer-play-btn').innerHTML = '▶';
+            document.getElementById('log-time-btn').style.display = 'none';
+            stopAudio();
+            updateMasterDisplay();
+            updateStatusIndicator();
+        }
+
+        function getCalculatedMinutes() {
+            let storedSecs = parseInt(localStorage.getItem('timerStoredSeconds')) || 0;
+            if (!isMasterRunning && storedSecs === 0 && masterMode !== 'stopwatch') return pomoMinutesSetting; 
+            
+            if (masterMode === 'stopwatch') {
+                return Math.ceil(storedSecs / 60);
+            } else {
+                return Math.ceil(((pomoMinutesSetting * 60) - storedSecs) / 60);
+            }
+        }
+
+        function pushTimeToLog() {
+            let mins = getCalculatedMinutes();
+            if (mins === 0) mins = 1;
+            document.getElementById('log-duration-input').value = mins;
+            document.querySelector('[data-target="log"]').click();
+            resetMasterTimer();
+        }
+
+        if (localStorage.getItem('isTimerRunning') === 'true') {
+            isMasterRunning = true;
+            document.getElementById('timer-play-btn').innerHTML = '⏸';
+            masterTimerInterval = setInterval(updateMasterDisplay, 500);
+        } else {
+            if(!localStorage.getItem('timerStoredSeconds')) localStorage.setItem('timerStoredSeconds', 0);
+            updateMasterDisplay();
+        }
+
+        // --- 8. DRAG LOGIC ---
+        function makeDraggable(element) {
+            let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+            element.onmousedown = dragMouseDown;
+            function dragMouseDown(e) {
+                if (['BUTTON', 'SELECT', 'INPUT', 'SPAN'].includes(e.target.tagName)) return;
+                e.preventDefault();
+                pos3 = e.clientX; pos4 = e.clientY;
+                document.onmouseup = closeDragElement;
+                document.onmousemove = elementDrag;
+            }
+            function elementDrag(e) {
+                e.preventDefault();
+                pos1 = pos3 - e.clientX; pos2 = pos4 - e.clientY;
+                pos3 = e.clientX; pos4 = e.clientY;
+                element.style.top = (element.offsetTop - pos2) + "px";
+                element.style.left = (element.offsetLeft - pos1) + "px";
+                element.style.bottom = "auto"; element.style.right = "auto";
+            }
+            function closeDragElement() { document.onmouseup = null; document.onmousemove = null; }
+        }
+        document.addEventListener('DOMContentLoaded', () => { makeDraggable(document.getElementById('timer-box')); });
+
+        // --- 9. PLANNER LOGIC (WITH CARRY-OVER FEATURE) ---
+        function getUpcomingDays() {
+            const days = [];
+            for(let i = 0; i < 6; i++) {
+                const d = new Date();
+                d.setDate(d.getDate() + i);
+                let label = d.toLocaleDateString('en-US', { weekday: 'long' });
+                if (i === 0) label += " (Today)";
+                else if (i === 1) label += " (Tomorrow)";
+                days.push({
+                    dateKey: getLocalDateString(d),
+                    label: label
+                });
+            }
+            return days;
+        }
+
+        function renderPlanner() {
+            const container = document.getElementById('planner-grid-container');
+            const select = document.getElementById('planner-day');
+            if(!container || !select) return;
+
+            container.innerHTML = '';
+            const currentSelected = select.value;
+            select.innerHTML = '';
+
+            const upcomingDays = getUpcomingDays();
+            const todayStr = getLocalDateString();
+
+            const pastDueTasks = [];
+            Object.keys(plannerTasks).forEach(dateKey => {
+                if (dateKey < todayStr) {
+                    pastDueTasks.push(...plannerTasks[dateKey].map(t => ({...t, originalDate: dateKey})));
+                    delete plannerTasks[dateKey];
+                }
+            });
+
+            if (pastDueTasks.length > 0) {
+                if (!plannerTasks[todayStr]) plannerTasks[todayStr] = [];
+                plannerTasks[todayStr].push(...pastDueTasks);
+                SyncManager.save(STORAGE_KEYS.plannerTasks, plannerTasks);
+            }
+
+            upcomingDays.forEach(dayObj => {
+                select.insertAdjacentHTML('beforeend', `<option value="${dayObj.dateKey}">${dayObj.label}</option>`);
+
+                let tasksHtml = '';
+                const dayTasks = plannerTasks[dayObj.dateKey] || [];
+                
+                if(dayTasks.length > 0) {
+                    dayTasks.forEach((task, index) => {
+                        const color = globalSubjectColorMap[task.subject] || 'var(--lime)';
+                        const shortSubj = task.subject.includes(':') ? task.subject.split(':')[1].trim() : task.subject;
+                        const isPastDue = task.originalDate && task.originalDate < todayStr;
+                        
+                        tasksHtml += `
+                            <div class="planner-task ${isPastDue ? 'past-due' : ''}" style="border-left-color: ${color};">
+                                <button class="planner-task-del" onclick="removePlannerTask('${dayObj.dateKey}', ${index})">✕</button>
+                                <div class="planner-task-title">${shortSubj}</div>
+                                <div class="planner-task-sub">${task.topic} ${isPastDue ? ' <b style="color:var(--pink)">(Past Due)</b>' : ''}</div>
+                            </div>
+                        `;
+                    });
+                } else {
+                    tasksHtml = `<div class="empty-state" style="margin-top:0;">No tasks assigned yet.</div>`;
+                }
+
+                container.insertAdjacentHTML('beforeend', `
+                    <div class="planner-day-col">
+                        <div class="planner-day-header">${dayObj.label.replace(' (Tomorrow)', '').replace(' (Today)', '')}</div>
+                        ${tasksHtml}
+                    </div>
+                `);
+            });
+
+            if(currentSelected && Array.from(select.options).some(o => o.value === currentSelected)) {
+                select.value = currentSelected;
+            }
+        }
+
+        function addPlannerTask() {
+            const dateKey = document.getElementById('planner-day').value;
+            const subject = document.getElementById('planner-subject').value;
+            const topic = document.getElementById('planner-topic').value;
+
+            if(!subject || !topic) return alert("Select a subject and unit first.");
+
+            if(!plannerTasks[dateKey]) plannerTasks[dateKey] = [];
+            plannerTasks[dateKey].push({ subject, topic });
+            
+            SyncManager.save(STORAGE_KEYS.plannerTasks, plannerTasks);
+            renderPlanner();
+        }
+
+        function removePlannerTask(dateKey, index) {
+            if(plannerTasks[dateKey]) {
+                plannerTasks[dateKey].splice(index, 1);
+                if(plannerTasks[dateKey].length === 0) delete plannerTasks[dateKey];
+                SyncManager.save(STORAGE_KEYS.plannerTasks, plannerTasks);
+                renderPlanner();
+            }
+        }
+
+        function updatePlannerTopicDropdown() {
+            const subjectName = document.getElementById('planner-subject').value;
+            const stage       = document.getElementById('course-stage-select').value;
+            const data        = syllabusData[stage];
+            if(!data) return;
+            const allPapers   = data.hasGroups ? [...data.group1, ...data.group2] : data.papers;
+            const selectedPaper = allPapers.find(p => p.name === subjectName);
+
+            const topicSelect = document.getElementById('planner-topic');
+            topicSelect.innerHTML = '';
+            if (selectedPaper) {
+                selectedPaper.parts.forEach(part => {
+                    const opt = document.createElement('option');
+                    opt.value = part; opt.textContent = part;
+                    topicSelect.appendChild(opt);
+                });
+            }
+        }
+
+        // --- 10. CORE TRACKER LOGIC ---
+        function renderCompare() {
+            const container = document.getElementById('compare-container');
+            if(!container) return;
+
+            const myName = document.getElementById('setting-name').value || "Me";
+            const myStage = document.getElementById('course-stage-select').value;
+            const myStats = getSyllabusStats(syllabusChecks, myStage);
+            const myHours = Math.floor(overallTotalMinutes / 60);
+            const myDays = studiedDates.length;
+
+            let fName = SyncManager.friendDataStatus;
+            let fPct = 0, fHours = 0, fDays = 0;
+
+            if (SyncManager.friendData && typeof SyncManager.friendData === 'object') {
+                fName = SyncManager.friendData.settingsName || "Friend";
+                fPct = SyncManager.friendData.syllabusPct || 0;
+                fHours = Math.floor((SyncManager.friendData.totalMinutes || 0) / 60);
+                fDays = SyncManager.friendData.studiedDaysCount || 0;
+            }
+
+            container.innerHTML = `
+                <div class="compare-card me">
+                    <div class="compare-title">
+                        <span class="dot" style="background: var(--lime); width: 12px; height: 12px;"></span>
+                        ${myName}
+                    </div>
+                    <div class="compare-stat">
+                        <span class="stat-label">Syllabus Complete</span>
+                        <span class="stat-val" style="color: var(--lime);">${myStats.pct}%</span>
+                    </div>
+                    <div class="compare-stat">
+                        <span class="stat-label">Total Study Time</span>
+                        <span class="stat-val">${myHours} <span style="font-size: 16px; color: var(--text-muted);">hrs</span></span>
+                    </div>
+                    <div class="compare-stat">
+                        <span class="stat-label">Days Logged</span>
+                        <span class="stat-val">${myDays} <span style="font-size: 16px; color: var(--text-muted);">days</span></span>
+                    </div>
+                </div>
+
+                <div class="compare-card friend">
+                    <div class="compare-title">
+                        <span class="dot" style="background: #a29bfe; width: 12px; height: 12px;"></span>
+                        ${fName}
+                    </div>
+                    <div class="compare-stat">
+                        <span class="stat-label">Syllabus Complete</span>
+                        <span class="stat-val" style="color: #a29bfe;">${fPct}%</span>
+                    </div>
+                    <div class="compare-stat">
+                        <span class="stat-label">Total Study Time</span>
+                        <span class="stat-val">${fHours} <span style="font-size: 16px; color: var(--text-muted);">hrs</span></span>
+                    </div>
+                    <div class="compare-stat">
+                        <span class="stat-label">Days Logged</span>
+                        <span class="stat-val">${fDays} <span style="font-size: 16px; color: var(--text-muted);">days</span></span>
+                    </div>
+                </div>
+            `;
+        }
+
+        function isTopicInLDR(subject, topic) { return ldrItems.some(item => item.subject === subject && item.topic === topic); }
+        function getLDRDifficulty(subject, topic) {
+            const item = ldrItems.find(i => i.subject === subject && i.topic === topic);
+            return item ? item.difficulty : 0;
+        }
+        function toggleLDRTopic(subject, topic) {
+            const exists = isTopicInLDR(subject, topic);
+            if(exists) {
+                ldrItems = ldrItems.filter(item => !(item.subject === subject && item.topic === topic));
+            } else {
+                ldrItems.push({ id: Date.now(), subject: subject, topic: topic, difficulty: 3, createdAt: new Date().toISOString() });
+            }
+            SyncManager.save(STORAGE_KEYS.ldrItems, ldrItems);
+            updateUIBasedOnCourse(); 
+        }
+        function setDifficultyTopic(subject, topic, diff) {
+            let item = ldrItems.find(i => i.subject === subject && i.topic === topic);
+            if(item) {
+                item.difficulty = diff;
+                SyncManager.save(STORAGE_KEYS.ldrItems, ldrItems);
+                updateUIBasedOnCourse();
+            }
+        }
+
+        function getDaysSinceStart() {
+            const startStr = document.getElementById('setting-start-date').value || todayStr;
+            const start = new Date(startStr);
+            const today = new Date();
+            start.setHours(0,0,0,0); today.setHours(0,0,0,0);
+            const days = Math.floor((today - start) / (1000 * 60 * 60 * 24)) + 1;
+            return days < 1 ? 1 : days;
+        }
+
+        function updateDaysStudiedBox() {
+            document.getElementById('days-studied-number').textContent = studiedDates.length;
+            document.getElementById('days-studied-sub').textContent = `of ${getDaysSinceStart()} since start`;
+        }
+
+        function updateTotalHoursBox() {
+            document.getElementById('total-hours-main').textContent = Math.floor(overallTotalMinutes / 60);
+            const daysStudiedCount = studiedDates.length;
+            const avgMinutes = daysStudiedCount > 0 ? Math.floor(overallTotalMinutes / daysStudiedCount) : 0;
+            document.getElementById('total-hours-avg').textContent = `avg ${Math.floor(avgMinutes / 60)}h ${avgMinutes % 60}m / day`;
+        }
+
+        function updateConsistencyBox() {
+            const total   = getDaysSinceStart();
+            const studied = studiedDates.length;
+            const pct     = total > 0 ? Math.round((studied / total) * 100) : 0;
+            const missed  = total - studied;
+
+            document.getElementById('consistency-main').textContent = `${pct}%`;
+            document.getElementById('consistency-sub').textContent  = `${missed} missed`;
+
+            const panel = document.querySelector('.consistency');
+            if (pct >= 80) {
+                panel.style.backgroundColor = 'var(--lime)'; panel.style.color = '#000';
+                document.querySelector('.consistency .panel-title').style.color = '#000';
+                document.querySelector('.consistency .text-sub').style.color    = '#000';
+            } else if (pct >= 50) {
+                panel.style.backgroundColor = '#ffb703'; panel.style.color = '#fff';
+                document.querySelector('.consistency .panel-title').style.color = '#fff';
+                document.querySelector('.consistency .text-sub').style.color    = '#fff';
+            } else {
+                panel.style.backgroundColor = 'var(--pink)'; panel.style.color = '#fff';
+                document.querySelector('.consistency .panel-title').style.color = '#fff';
+                document.querySelector('.consistency .text-sub').style.color    = '#fff';
+            }
+        }
+
+        function isUnitCompleted(subject, topic) {
+            const fr = syllabusChecks[getCheckboxKey(subject, topic, 'FR')];
+            const q = syllabusChecks[getCheckboxKey(subject, topic, 'Q')];
+            const w = syllabusChecks[getCheckboxKey(subject, topic, 'W')];
+            return fr && q && w;
+        }
+
+        function calculateProgress() {
+            const stage = document.getElementById('course-stage-select').value;
+            const data  = syllabusData[stage];
+            if (!data) return; 
+
+            const allPapers = data.hasGroups ? [...data.group1, ...data.group2] : data.papers;
+            const stats = getSyllabusStats(syllabusChecks, stage);
+
+            allPapers.forEach((paper, idx) => {
+                let paperTotalUnits = paper.parts.length;
+                let paperCompletedUnits = 0;
+
+                paper.parts.forEach(part => {
+                    if (isUnitCompleted(paper.name, part)) {
+                        paperCompletedUnits++;
+                    }
+                });
+
+                const paperPct = paperTotalUnits > 0 ? Math.round((paperCompletedUnits / paperTotalUnits) * 100) : 0;
+
+                const compRows = document.querySelectorAll('#subject-completion-container .comp-row');
+                if (compRows[idx]) {
+                    const fill = compRows[idx].querySelector('.comp-fill');
+                    const pctEl = compRows[idx].querySelector('.comp-pct');
+                    if (fill)  fill.style.width  = paperPct + '%';
+                    if (pctEl) pctEl.textContent  = paperPct + '%';
+                }
+
+                const moduleEl = document.getElementById(`module-${paper.name.replace(/[\W_]+/g,"")}`);
+                if(moduleEl) {
+                    moduleEl.querySelector('.syllabus-header-pct').textContent = `${paperPct}% Complete`;
+                }
+            });
+
+            document.getElementById('overall-progress-bar').style.width = stats.pct + '%';
+            document.getElementById('overall-progress-pct').textContent  = stats.pct + '%';
+            document.getElementById('overall-progress-modules').textContent = `${stats.completed} / ${stats.total} units`;
+            
+            updateVelocity(stats.total, stats.completed);
+            renderCompare();
+        }
+
+        function refreshDashboard() {
+            const currentDateStr = getLocalDateString();
+            const todaysSessions = studySessions.filter(s => s.date === currentDateStr);
+            
+            const todayMins = todaysSessions.reduce((sum, s) => sum + s.duration, 0);
+            const todaySubjs = {};
+            todaysSessions.forEach(s => { todaySubjs[s.subject] = (todaySubjs[s.subject] || 0) + s.duration; });
+            
+            document.getElementById('today-glance-time').innerHTML = `${Math.floor(todayMins/60)}h<br>${todayMins%60}m`;
+            const subjCount = Object.keys(todaySubjs).length;
+            document.getElementById('today-glance-subject-count').textContent = `${subjCount} subject${subjCount === 1 ? '' : 's'}`;
+            
+            const rightPane = document.getElementById('today-glance-right');
+            if (todaysSessions.length === 0) {
+                rightPane.innerHTML = `<div class="empty-state">No study sessions logged for today yet.</div>`;
+            } else {
+                rightPane.innerHTML = '';
+                Object.entries(todaySubjs).sort((a,b) => b[1]-a[1]).forEach(([subj, mins]) => {
+                    const h = Math.floor(mins / 60);
+                    rightPane.insertAdjacentHTML('beforeend', `
+                        <div class="subject-row">
+                            <div title="${subj}" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px;">
+                                <span class="dot" style="background:${globalSubjectColorMap[subj]||'#fff'};"></span>
+                                ${subj.includes(':') ? subj.split(':')[1].trim() : subj}
+                            </div>
+                            <div style="color:#888;">${h > 0 ? `${h}h ${mins%60}m` : `${mins%60}m`}</div>
+                        </div>`);
+                });
+            }
+
+            const actContainer = document.getElementById('activity-breakdown-container');
+            const totalSessionMins = studySessions.reduce((sum, s) => sum + s.duration, 0);
+            actContainer.innerHTML = '';
+            
+            if (totalSessionMins === 0) {
+                actContainer.innerHTML = `<div class="empty-state">No data yet.</div>`;
+            } else {
+                const actTotals = {};
+                studySessions.forEach(s => { actTotals[s.activity] = (actTotals[s.activity] || 0) + s.duration; });
+                
+                Object.keys(activityMap).forEach(actName => {
+                    const mins = actTotals[actName] || 0;
+                    const pct = Math.round((mins / totalSessionMins) * 100);
+                    
+                    let color = 'var(--lime)';
+                    if(actName==='Lecture') color = '#0984e3';
+                    if(actName==='Questions') color = '#a29bfe';
+                    if(actName==='Writing Practice') color = '#e84393';
+                    if(actName==='Revision') color = '#fdcb6e';
+                    if(actName==='Mock Test') color = 'var(--pink)';
+                    
+                    actContainer.insertAdjacentHTML('beforeend', `
+                        <div class="activity-row">
+                            <div class="activity-name">${actName}</div>
+                            <div class="activity-bar-track"><div class="activity-bar-fill" style="width: ${pct}%; background: ${color};"></div></div>
+                            <div class="activity-pct" style="color: ${color};">${pct}%</div>
+                        </div>`);
+                });
+            }
+
+            const recentContainer = document.getElementById('recent-sessions-list');
+            recentContainer.innerHTML = '';
+            if (studySessions.length === 0) {
+                recentContainer.innerHTML = `<div class="empty-state">No sessions logged yet. Head to the Log tab to record your first session!</div>`;
+            } else {
+                const recent = studySessions.slice(-6).reverse(); 
+                recent.forEach(s => {
+                    const dateObj = new Date(s.createdAt);
+                    const isToday = s.date === currentDateStr;
+                    const dayStr = isToday ? 'Today' : dateObj.toLocaleDateString('en-US', {month:'short', day:'numeric'});
+                    const timeStr = dateObj.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                    const shortTopic = s.topic.length > 25 ? s.topic.substring(0, 25) + '…' : s.topic;
+                    const color = globalSubjectColorMap[s.subject] || '#fff';
+                    const actData = activityMap[s.activity] || { icon: "•" };
+                    
+                    recentContainer.insertAdjacentHTML('beforeend', `
+                        <div class="session-item">
+                            <div class="session-time">${dayStr}<br>${timeStr}</div>
+                            <div class="session-details">
+                                <div class="session-title" title="${s.subject}: ${s.topic}">${shortTopic}</div>
+                                <div class="session-sub">${actData.icon.split(' ')[0]} ${s.activity} · ${s.duration}m</div>
+                            </div>
+                            <div class="session-dot" style="background:${color};"></div>
+                        </div>`);
+                });
+            }
+
+            const ebbList = document.getElementById('ebbinghaus-list');
+            const finalCycle = document.getElementById('final-cycle-list');
+            let hasEbb = false, hasFinal = false;
+            ebbList.innerHTML = ''; finalCycle.innerHTML = '';
+            
+            const now = new Date();
+            
+            studySessions.forEach(s => {
+                if (s.activity === "First Reading") {
+                    const logDate = new Date(s.createdAt);
+                    const daysOld = Math.floor((now - logDate) / (1000 * 60 * 60 * 24));
+                    const color = globalSubjectColorMap[s.subject] || '#fff';
+                    const shortSubj = s.subject.includes(':') ? s.subject.split(':')[1].trim() : s.subject;
+                    
+                    if (daysOld >= 0 && daysOld <= 2) {
+                        hasEbb = true;
+                        ebbList.insertAdjacentHTML('beforeend', `
+                            <div class="rev-item" style="border-color:${color}">
+                                <div class="rev-header">
+                                    <span>${shortSubj}: ${s.topic}</span>
+                                    <span class="tag-orange">E1 Due: Day 1</span>
+                                </div>
+                            </div>`);
+                    } else if (daysOld >= 2 && daysOld <= 4) {
+                        hasEbb = true;
+                        ebbList.insertAdjacentHTML('beforeend', `
+                            <div class="rev-item" style="border-color:${color}">
+                                <div class="rev-header">
+                                    <span>${shortSubj}: ${s.topic}</span>
+                                    <span class="tag-lime">E2 Due: Day 3</span>
+                                </div>
+                            </div>`);
+                    } else if (daysOld >= 6 && daysOld <= 8) {
+                        hasEbb = true;
+                        ebbList.insertAdjacentHTML('beforeend', `
+                            <div class="rev-item" style="border-color:${color}">
+                                <div class="rev-header">
+                                    <span>${shortSubj}: ${s.topic}</span>
+                                    <span style="color:#00cec9; font-size:10px; font-weight:700;">E3 Due: Day 7</span>
+                                </div>
+                            </div>`);
+                    }
+                }
+                if (s.activity === "Mock Test") {
+                    const logDate = new Date(s.createdAt);
+                    const daysOld = Math.floor((now - logDate) / (1000 * 60 * 60 * 24));
+                    const shortSubj = s.subject.includes(':') ? s.subject.split(':')[1].trim() : s.subject;
+                    if (daysOld <= 7) {
+                        hasFinal = true;
+                        finalCycle.insertAdjacentHTML('beforeend', `
+                            <div class="rev-item" style="border-color:var(--pink)">
+                                <div class="rev-header">
+                                    <span>${shortSubj}: Full Sweep</span>
+                                    <span class="tag-red">Active (Day ${daysOld}/7)</span>
+                                </div>
+                            </div>`);
+                    }
+                }
+            });
+            
+            if (!hasEbb) ebbList.innerHTML = `<div class="empty-state">Complete a "First Reading" to trigger the 1d/3d/7d/30d cycle. No reviews due right now.</div>`;
+            if (!hasFinal) finalCycle.innerHTML = `<div class="empty-state">Log a "Mock Test" to trigger final sweep cycles.</div>`;
+
+            renderHeatmap();
+            renderLDRList();
+            renderCompare();
+        }
+
+        function renderLDRList() {
+            const ldrContainer = document.getElementById('ldr-list-container');
+            ldrContainer.innerHTML = '';
+            if (ldrItems.length === 0) {
+                ldrContainer.innerHTML = `<div class="empty-state">Your LDR list is currently empty. Hover over a unit row in the Syllabus tab to flag it.</div>`;
+                return;
+            }
+            
+            ldrItems.sort((a,b) => b.difficulty - a.difficulty).forEach(item => {
+                const shortSubj = item.subject.includes(':') ? item.subject.split(':')[1].trim() : item.subject;
+                const difficultyColor = item.difficulty >= 4 ? 'var(--pink)' : item.difficulty === 3 ? '#ffb703' : 'var(--lime)';
+                
+                ldrContainer.insertAdjacentHTML('beforeend', `
+                    <div class="ldr-item" id="ldr-${item.id}">
+                        <div>
+                            <div class="ldr-title">${shortSubj} <span style="color:${difficultyColor}; font-size:10px; margin-left: 8px;">★ ${item.difficulty}/5</span></div>
+                            <div class="ldr-sub">${item.topic}</div>
+                        </div>
+                        <button class="ldr-btn" onclick="toggleLDRTopic('${item.subject.replace(/'/g,"\\'")}','${item.topic.replace(/'/g,"\\'")}')">Remove</button>
+                    </div>`);
+            });
+        }
+
+        function logMockTest() {
+            const subject = document.getElementById('mt-subject-select').value;
+            const obtained = document.getElementById('mt-obtained').value;
+            const total = document.getElementById('mt-total').value;
+            
+            if (!obtained || !total) return alert("Please enter marks.");
+
+            const record = {
+                date: getLocalDateString(),
+                subject,
+                obtained,
+                total,
+                pct: ((obtained / total) * 100).toFixed(2)
+            };
+            
+            mockTests.push(record);
+            SyncManager.save(STORAGE_KEYS.mockTests, mockTests);
+            
+            document.getElementById('mt-obtained').value = '';
+            renderMockTests();
+        }
+
+        function renderMockTests() {
+            const body = document.getElementById('mt-history-body');
+            body.innerHTML = '';
+            
+            if (mockTests.length === 0) {
+                body.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 24px; color: var(--text-muted); font-style: italic;">No mock tests logged yet.</td></tr>`;
+                return;
+            }
+
+            mockTests.slice().reverse().forEach((mt, reversedIdx) => {
+                const actualIdx = mockTests.length - 1 - reversedIdx;
+                const pctVal = parseFloat(mt.pct);
+                let color = 'var(--lime)';
+                if(pctVal < 40) color = 'var(--pink)';
+                else if (pctVal < 60) color = '#ffb703';
+
+                body.insertAdjacentHTML('beforeend', `
+                    <tr>
+                        <td>${mt.date}</td>
+                        <td style="font-weight: 500;">${mt.subject}</td>
+                        <td>${mt.obtained} / ${mt.total}</td>
+                        <td style="color: ${color}; font-weight: 600;">${mt.pct}%</td>
+                        <td style="text-align: right;"><button onclick="deleteMT(${actualIdx})" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size: 14px;">🗑</button></td>
+                    </tr>
+                `);
+            });
+        }
+
+        function deleteMT(idx) {
+            if(confirm("Delete this mock test record?")) {
+                mockTests.splice(idx, 1);
+                SyncManager.save(STORAGE_KEYS.mockTests, mockTests);
+                renderMockTests();
+            }
+        }
+
+        function updateVelocity(totalUnitsCount, totalCompletedCount) {
+            const remainingUnits = totalUnitsCount - totalCompletedCount;
+            const dateStr = document.getElementById('date-group1').value;
+            if(!dateStr) {
+                document.getElementById('velocity-display').innerHTML = "Please set an Exam Date in Settings to calculate velocity.";
+                return;
+            }
+
+            const examDate = new Date(dateStr);
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            examDate.setHours(0,0,0,0);
+            
+            const rawDaysRemaining = Math.ceil((examDate - today) / (1000 * 60 * 60 * 24));
+            const activeDaysRemaining = Math.max(1, rawDaysRemaining - 15);
+            
+            const velocity = (remainingUnits / activeDaysRemaining).toFixed(2);
+            const displayEl = document.getElementById('velocity-display');
+            
+            if(remainingUnits <= 0) {
+                displayEl.innerHTML = `You have completed all units! Proceed with final Mock Tests and LDR revisions.`;
+                displayEl.style.color = "var(--lime)";
+                return;
+            }
+
+            displayEl.innerHTML = `
+                You have <strong>${remainingUnits} units</strong> remaining to reach 100% Exam-Readiness.<br>
+                To clear the syllabus with a 15-day buffer before exams, you need to complete 
+                <span style="color: var(--lime); font-weight: 700; font-size: 20px;">${velocity} units</span> per day.
+            `;
+        }
+
+        function renderHeatmap() {
+            const cellsContainer = document.getElementById('heatmap-cells');
+            const tooltip = document.getElementById('heatmap-tooltip');
+            if (!cellsContainer || !tooltip) return;
+            cellsContainer.innerHTML = '';
+            
+            let streak = 0;
+            let checkDate = new Date();
+            
+            let iterations = 0; 
+            while (iterations < 1000) {
+                iterations++;
+                if (studiedDates.includes(getLocalDateString(checkDate))) { 
+                    streak++; 
+                    checkDate.setDate(checkDate.getDate() - 1); 
+                } else {
+                    if (streak === 0 && getLocalDateString(checkDate) === getLocalDateString(new Date())) {
+                        checkDate.setDate(checkDate.getDate() - 1);
+                        if (studiedDates.includes(getLocalDateString(checkDate))) {
+                            streak++;
+                            checkDate.setDate(checkDate.getDate() - 1);
+                            continue;
+                        }
+                    }
+                    break;
+                }
+            }
+            document.getElementById('streak-badge').textContent = `🔥 ${streak} Day Streak`;
+
+            const today = new Date();
+            const totalDays = 364; 
+            
+            for (let i = totalDays - 1; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(today.getDate() - i);
+                const dateStr = getLocalDateString(d);
+                
+                const daySessions = studySessions.filter(s => s.date === dateStr);
+                const totalMins = daySessions.reduce((sum, s) => sum + s.duration, 0);
+                const hours = totalMins / 60;
+                
+                let intensity = 0;
+                if (hours > 0) intensity = 1;
+                if (hours >= 3) intensity = 2;
+                if (hours >= 6) intensity = 3;
+                if (hours >= 9) intensity = 4;
+
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.dataset.intensity = intensity;
+                
+                if (hours >= 12) cell.classList.add('goal-achieved');
+                if (d.getDate() === 1) cell.style.borderLeft = "1px solid #555";
+
+                cell.onmouseover = (e) => {
+                    tooltip.style.display = 'block';
+                    const subjectList = [...new Set(daySessions.map(s => s.subject.split(':')[0]))].join(', ');
+                    const displayDate = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+                    
+                    tooltip.innerHTML = `
+                        <strong>${displayDate}</strong>
+                        ${hours > 0 ? `${hours.toFixed(1)} hours logged` : 'No study logged'}
+                        ${subjectList ? `<br><span>${subjectList}</span>` : ''}
+                    `;
+                    tooltip.style.left = (e.clientX + 15) + 'px';
+                    tooltip.style.top = (e.clientY + 15) + 'px';
+                };
+                
+                cell.onmouseout = () => { tooltip.style.display = 'none'; };
+                cellsContainer.appendChild(cell);
+            }
+            
+            const wrapper = document.querySelector('.heatmap-container-wrapper');
+            if (wrapper) wrapper.scrollLeft = wrapper.scrollWidth;
+        }
+
+        function toggleActivityBtn(btn) {
+            const subject = btn.getAttribute('data-subject');
+            const topic = btn.getAttribute('data-topic');
+            const activityCode = btn.getAttribute('data-activity');
+            const className = btn.getAttribute('data-activeclass');
+            const key = getCheckboxKey(subject, topic, activityCode);
+
+            if(syllabusChecks[key]) {
+                delete syllabusChecks[key];
+                btn.classList.remove(className);
+            } else {
+                syllabusChecks[key] = true;
+                btn.classList.add(className);
+            }
+            
+            SyncManager.save(STORAGE_KEYS.syllabusChecks, syllabusChecks);
+            calculateProgress();
+            checkRowCompletion(btn.closest('.syllabus-part-row'));
+        }
+
+        function checkRowCompletion(rowEl) {
+            if(!rowEl) return;
+            const subject = rowEl.getAttribute('data-subject');
+            const topic = rowEl.getAttribute('data-topic');
+            
+            if(isUnitCompleted(subject, topic)) {
+                rowEl.classList.add('completed');
+                if(hideCompletedSyllabus) rowEl.style.display = 'none';
+            } else {
+                rowEl.classList.remove('completed');
+                rowEl.style.display = 'flex';
+            }
+        }
+
+        function toggleCompletedSyllabus() {
+            hideCompletedSyllabus = !hideCompletedSyllabus;
+            document.querySelectorAll('.syllabus-part-row').forEach(row => {
+                if(row.classList.contains('completed') && hideCompletedSyllabus) {
+                    row.style.display = 'none';
+                } else {
+                    row.style.display = 'flex';
+                }
+            });
+            document.getElementById('toggle-syllabus-btn').textContent = hideCompletedSyllabus ? 'Show All Units' : 'Hide Completed Units';
+        }
+
+        function saveSettings() {
+            const prepStartDate = document.getElementById('setting-start-date').value;
+            const settingsName = document.getElementById('setting-name').value;
+            const settingsCourse = document.getElementById('course-stage-select').value;
+            const examDate1 = document.getElementById('date-group1').value;
+            const examDate2 = document.getElementById('date-group2').value;
+            
+            // Sync Room Logic
+            const newRoomID = document.getElementById('setting-room-id').value.trim() || 'my-default-room';
+            const newRoomPass = document.getElementById('setting-room-password').value;
+            const newFriendID = document.getElementById('setting-friend-room-id').value.trim();
+            
+            let connectionChanged = false;
+
+            if(newRoomID !== SyncManager.roomID || newRoomPass !== SyncManager.roomPassword) {
+                localStorage.setItem('caTracker_roomID', newRoomID);
+                localStorage.setItem('caTracker_roomPassword', newRoomPass);
+                connectionChanged = true;
+            }
+            
+            if(newFriendID !== SyncManager.friendRoomID) {
+                localStorage.setItem('caTracker_friendRoomID', newFriendID);
+                connectionChanged = true;
+            }
+
+            if(!connectionChanged) {
+                SyncManager.save(STORAGE_KEYS.startDate, prepStartDate);
+                SyncManager.save(STORAGE_KEYS.settingsName, settingsName);
+                SyncManager.save(STORAGE_KEYS.settingsCourse, settingsCourse);
+                SyncManager.save(STORAGE_KEYS.examDate1, examDate1);
+                SyncManager.save(STORAGE_KEYS.examDate2, examDate2);
+            }
+
+            if(connectionChanged) {
+                alert('Connection credentials changed. The tracker will now reload to apply new sync connections.');
+                window.location.reload();
+            } else {
+                updateDaysStudiedBox();
+                updateTotalHoursBox();
+                updateConsistencyBox();
+                updateUIBasedOnCourse();
+                alert('Settings Saved Successfully!');
+            }
+        }
+
+        function resetUserData() {
+            if (!confirm(`Are you sure you want to reset all your study data for Room ID: "${SyncManager.roomID}"? Your syllabus structure will remain, but all logged time, progress, LDRs, planner tasks, and mock tests will be permanently deleted.`)) {
+                return;
+            }
+
+            SyncManager.remove(STORAGE_KEYS.studiedDates);
+            SyncManager.remove(STORAGE_KEYS.totalMinutes);
+            SyncManager.remove(STORAGE_KEYS.syllabusChecks);
+            SyncManager.remove(STORAGE_KEYS.sessions);
+            SyncManager.remove(STORAGE_KEYS.ldrItems);
+            SyncManager.remove(STORAGE_KEYS.mockTests);
+            SyncManager.remove(STORAGE_KEYS.plannerTasks);
+            SyncManager.remove(STORAGE_KEYS.startDate);
+            SyncManager.remove(STORAGE_KEYS.settingsName);
+            SyncManager.remove(STORAGE_KEYS.settingsCourse);
+            SyncManager.remove(STORAGE_KEYS.examDate1);
+            SyncManager.remove(STORAGE_KEYS.examDate2);
+            
+            localStorage.removeItem('caTracker_localBackup_' + SyncManager.roomID);
+
+            studiedDates = [];
+            overallTotalMinutes = 0;
+            syllabusChecks = {};
+            studySessions = [];
+            ldrItems = [];
+            mockTests = [];
+            plannerTasks = {};
+
+            document.getElementById('setting-start-date').value = todayStr;
+            document.getElementById('setting-name').value = "";
+            SyncManager.data[STORAGE_KEYS.settingsName] = "";
+            document.getElementById('course-stage-select').value = "CA Foundation";
+            document.getElementById('date-group1').value = "";
+            document.getElementById('date-group2').value = "";
+            document.getElementById('navbar-subtitle').textContent = `CA Foundation`;
+
+            updateUIBasedOnCourse();
+            updateDaysStudiedBox();
+            updateTotalHoursBox();
+            updateConsistencyBox();
+            renderMockTests();
+            
+            alert("Data has been successfully reset. You have a clean slate!");
+        }
+
+        function updateCountdowns() {
+            const today = new Date(); 
+            today.setHours(0,0,0,0);
+            
+            const date1Val = document.getElementById('date-group1').value;
+            if (date1Val) {
+                const target1 = new Date(date1Val);
+                target1.setHours(0,0,0,0);
+                const diff1 = Math.ceil((target1 - today) / (1000 * 60 * 60 * 24));
+                document.getElementById('countdown-g1-number').textContent = diff1 >= 0 ? diff1 : 0;
+                document.getElementById('dashboard-g1-desc').textContent = `${target1.toLocaleDateString('en-US',{month:'short',day:'numeric'})} Exam`;
+            } else {
+                document.getElementById('countdown-g1-number').textContent = 0;
+                document.getElementById('dashboard-g1-desc').textContent = `Exam`;
+            }
+            
+            const date2Val = document.getElementById('date-group2').value;
+            if (date2Val) {
+                const target2 = new Date(date2Val);
+                target2.setHours(0,0,0,0);
+                const diff2 = Math.ceil((target2 - today) / (1000 * 60 * 60 * 24));
+                document.getElementById('countdown-g2-number').textContent = diff2 >= 0 ? diff2 : 0;
+                document.getElementById('dashboard-g2-desc').textContent = `${target2.toLocaleDateString('en-US',{month:'short',day:'numeric'})} Exam`;
+            } else {
+                document.getElementById('countdown-g2-number').textContent = 0;
+                document.getElementById('dashboard-g2-desc').textContent = `Exam`;
+            }
+        }
+
+        function updateTopicDropdown() {
+            const subjectName = document.getElementById('log-subject-select').value;
+            const stage       = document.getElementById('course-stage-select').value;
+            const data        = syllabusData[stage];
+            if(!data) return;
+            const allPapers   = data.hasGroups ? [...data.group1, ...data.group2] : data.papers;
+            const selectedPaper = allPapers.find(p => p.name === subjectName);
+
+            const topicSelect = document.getElementById('log-topic-select');
+            topicSelect.innerHTML = '';
+            if (selectedPaper) {
+                selectedPaper.parts.forEach(part => {
+                    const opt = document.createElement('option');
+                    opt.value = part; opt.textContent = part;
+                    topicSelect.appendChild(opt);
+                });
+            }
+        }
+
+        function resumeLastSessionDefaults() {
+            if (studySessions.length === 0) return alert("No previous sessions to resume!");
+            const lastSession = studySessions[studySessions.length - 1];
+            document.getElementById('log-subject-select').value = lastSession.subject;
+            updateTopicDropdown();
+            document.getElementById('log-topic-select').value = lastSession.topic;
+            document.getElementById('log-activity-select').value = lastSession.activity;
+        }
+
+        function updateUIBasedOnCourse() {
+            globalSubjectColorMap = {};
+
+            const stage    = document.getElementById('course-stage-select').value;
+            const data     = syllabusData[stage];
+            
+            if(!data) {
+                document.getElementById('course-stage-select').value = "CA Foundation";
+                return updateUIBasedOnCourse();
+            }
+
+            const hasGroups = data.hasGroups;
+
+            document.getElementById('group2-date-container').style.display  = hasGroups ? 'flex' : 'none';
+            document.getElementById('label-group1').textContent              = hasGroups ? 'Group 1 Exam Date' : 'Exam Date';
+            document.getElementById('dashboard-exam-group2').style.display   = hasGroups ? 'flex' : 'none';
+            document.getElementById('dashboard-g1-title').textContent        = hasGroups ? 'GROUP 1' : 'EXAM';
+
+            const name = document.getElementById('setting-name').value;
+            const subtitleText = name ? `${name} · ${stage}` : stage;
+            document.getElementById('navbar-subtitle').textContent = subtitleText;
+
+            const logSelect  = document.getElementById('log-subject-select');
+            const plannerSubjSelect = document.getElementById('planner-subject');
+            const mtSelect   = document.getElementById('mt-subject-select');
+            
+            logSelect.innerHTML = '';
+            plannerSubjSelect.innerHTML = '';
+            mtSelect.innerHTML = '';
+
+            const allPapers  = hasGroups ? [...data.group1, ...data.group2] : data.papers;
+            allPapers.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.name; opt.textContent = p.name;
+                
+                logSelect.appendChild(opt.cloneNode(true));
+                plannerSubjSelect.appendChild(opt.cloneNode(true));
+                mtSelect.appendChild(opt.cloneNode(true));
+            });
+            updateTopicDropdown();
+            updatePlannerTopicDropdown();
+
+            const completionContainer = document.getElementById('subject-completion-container');
+            const syllabusContainer   = document.getElementById('syllabus-content-container');
+            completionContainer.innerHTML = '<div class="panel-title">Subject Completion</div>';
+            syllabusContainer.innerHTML   = '';
+
+            let colorIndex = 0;
+
+            const createCompletionRow = (paper) => {
+                const color = subjectColors[colorIndex % subjectColors.length];
+                globalSubjectColorMap[paper.name] = color;
+                colorIndex++;
+                return `
+                    <div class="comp-row">
+                        <div class="comp-name" title="${paper.name}">
+                            <span class="dot" style="background: ${color};"></span>${paper.name}
+                        </div>
+                        <div class="comp-bar">
+                            <div class="comp-fill" style="width: 0%; background: ${color};"></div>
+                        </div>
+                        <div class="comp-pct" style="color: #888;">0%</div>
+                    </div>`;
+            };
+
+            const createSyllabusModule = (paper) => {
+                let partsHtml = '';
+                paper.parts.forEach(part => {
+                    const safeSubject = part.replace(/'/g, "\\'");
+                    const safePaper   = paper.name.replace(/'/g, "\\'");
+                    
+                    const inLDR = isTopicInLDR(paper.name, part);
+                    const ldrDiff = getLDRDifficulty(paper.name, part);
+
+                    const buttonsHtml = activitiesList.map(act => {
+                        const key = getCheckboxKey(paper.name, part, act.code);
+                        const isActive = syllabusChecks[key] ? act.class : '';
+                        return `<div class="act-btn ${isActive}" data-subject="${safePaper}" data-topic="${safeSubject}" data-activity="${act.code}" data-activeclass="${act.class}" onclick="toggleActivityBtn(this)">
+                            ${act.icon}
+                        </div>`;
+                    }).join('');
+
+                    const starsHtml = [1,2,3,4,5].map(s => `<button class="star-btn ${ldrDiff >= s ? 'active' : ''}" onclick="setDifficultyTopic('${safePaper}','${safeSubject}',${s})">★</button>`).join('');
+                    
+                    partsHtml += `
+                        <div class="syllabus-part-row" data-subject="${safePaper}" data-topic="${safeSubject}">
+                            <div class="syllabus-part-title">${part}</div>
+                            <div class="syllabus-activities">
+                                ${buttonsHtml}
+                                <div class="row-controls">
+                                    <button class="ldr-flag-btn ${inLDR ? 'active' : ''}" title="Toggle LDR" onclick="toggleLDRTopic('${safePaper}','${safeSubject}')">🚩</button>
+                                    ${inLDR ? `<div class="diff-stars">${starsHtml}</div>` : ''}
+                                </div>
+                            </div>
+                        </div>`;
+                });
+                return `
+                    <div class="syllabus-module" id="module-${paper.name.replace(/[\W_]+/g,"")}">
+                        <div class="syllabus-header">
+                            <div class="syllabus-header-title">
+                                <span class="dot" style="background: ${globalSubjectColorMap[paper.name]};"></span> ${paper.name}
+                            </div>
+                            <div class="syllabus-header-pct">0% Complete</div>
+                        </div>
+                        ${partsHtml}
+                    </div>`;
+            };
+
+            if (hasGroups) {
+                let g1Html = `<div class="completion-group"><div class="completion-group-title">Group 1</div>`;
+                data.group1.forEach(p => { g1Html += createCompletionRow(p); syllabusContainer.innerHTML += createSyllabusModule(p); });
+                completionContainer.innerHTML += g1Html + `</div>`;
+
+                let g2Html = `<div class="completion-group"><div class="completion-group-title">Group 2</div>`;
+                data.group2.forEach(p => { g2Html += createCompletionRow(p); syllabusContainer.innerHTML += createSyllabusModule(p); });
+                completionContainer.innerHTML += g2Html + `</div>`;
+            } else {
+                let html = `<div class="completion-group"><div class="completion-group-title">All Subjects</div>`;
+                data.papers.forEach(p => { html += createCompletionRow(p); syllabusContainer.innerHTML += createSyllabusModule(p); });
+                completionContainer.innerHTML += html + `</div>`;
+            }
+
+            colorIndex = 0;
+            allPapers.forEach(p => {
+                globalSubjectColorMap[p.name] = subjectColors[colorIndex % subjectColors.length];
+                colorIndex++;
+            });
+
+            calculateProgress();
+            document.querySelectorAll('.syllabus-part-row').forEach(row => checkRowCompletion(row));
+            refreshDashboard();
+        }
+
+        function logSession() {
+            const subject     = document.getElementById('log-subject-select').value;
+            let activityFull  = document.getElementById('log-activity-select').value;
+            const durationStr = document.getElementById('log-duration-input').value;
+            const topic       = document.getElementById('log-topic-select').value;
+            const isLDR       = document.getElementById('log-ldr-checkbox').checked;
+            const difficulty  = parseInt(document.getElementById('log-ldr-difficulty').value);
+
+            const duration = parseInt(durationStr) || 0;
+            
+            if (duration <= 0 && !isLDR) { 
+                alert("Please enter a valid duration in minutes, or check the LDR box to just flag the topic."); 
+                return; 
+            }
+
+            const currentDateStr = getLocalDateString();
+            const recordId = Date.now();
+
+            if(duration > 0) {
+                const sessionRecord = {
+                    id: recordId,
+                    date: currentDateStr,
+                    subject: subject,
+                    topic: topic,
+                    activity: activityFull,
+                    duration: duration,
+                    createdAt: new Date().toISOString()
+                };
+
+                studySessions.push(sessionRecord);
+                SyncManager.save(STORAGE_KEYS.sessions, studySessions);
+
+                if (!studiedDates.includes(currentDateStr)) {
+                    studiedDates.push(currentDateStr);
+                    SyncManager.save(STORAGE_KEYS.studiedDates, studiedDates);
+                }
+                updateDaysStudiedBox();
+                updateConsistencyBox();
+
+                overallTotalMinutes += duration;
+                SyncManager.save(STORAGE_KEYS.totalMinutes, overallTotalMinutes);
+                updateTotalHoursBox();
+
+                const actDataKey = Object.keys(activityMap).find(k => activityMap[k].code === activityFull || k === activityFull);
+                if (actDataKey) {
+                    const code = activityMap[actDataKey].code;
+                    const key = getCheckboxKey(subject, topic, code);
+                    syllabusChecks[key] = true;
+                    SyncManager.save(STORAGE_KEYS.syllabusChecks, syllabusChecks);
+                }
+            }
+
+            if (isLDR) {
+                if(!isTopicInLDR(subject, topic)) {
+                    ldrItems.push({
+                        id: recordId + 1,
+                        subject: subject,
+                        topic: topic,
+                        difficulty: difficulty,
+                        createdAt: new Date().toISOString()
+                    });
+                    SyncManager.save(STORAGE_KEYS.ldrItems, ldrItems);
+                } else {
+                    setDifficultyTopic(subject, topic, difficulty);
+                }
+            }
+
+            updateUIBasedOnCourse(); 
+            
+            document.getElementById('log-duration-input').value  = '';
+            document.getElementById('log-ldr-checkbox').checked  = false;
+            document.getElementById('ldr-difficulty-wrapper').style.display = 'none';
+
+            alert('Saved Successfully!');
+            document.querySelector('[data-target="dashboard"]').click();
+        }
+
+        // --- 11. EVENT LISTENERS ---
+        const navLinks = document.querySelectorAll('.nav-links div');
+        const tabSections = document.querySelectorAll('.tab-section');
+        
+        navLinks.forEach(link => {
+            link.addEventListener('click', () => {
+                navLinks.forEach(nav => nav.classList.remove('active'));
+                link.classList.add('active');
+                const targetId = link.getAttribute('data-target');
+                tabSections.forEach(section => section.classList.remove('active-tab'));
+                document.getElementById(targetId).classList.add('active-tab');
+            });
+        });
+
+        document.getElementById('course-stage-select').addEventListener('change', updateUIBasedOnCourse);
+        document.getElementById('setting-name').addEventListener('input', () => {
+            const name = document.getElementById('setting-name').value;
+            const stage = document.getElementById('course-stage-select').value;
+            document.getElementById('navbar-subtitle').textContent = name ? `${name} · ${stage}` : stage;
+        });
+        document.getElementById('log-subject-select').addEventListener('change', updateTopicDropdown);
+        document.getElementById('planner-subject').addEventListener('change', updatePlannerTopicDropdown);
+
+    </script>
+</body>
+</html>
